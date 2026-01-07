@@ -1,0 +1,308 @@
+
+translations = {
+    "Português": {
+        "title": "💊 Curadoria de Dados QSAR",
+        "intro_text": "Esta ferramenta realiza a curadoria automática de dados do ChEMBL para estudos de QSAR.",
+        "pipeline_expander": "ℹ️ Detalhes do Pipeline de Curadoria",
+        "pipeline_desc": """
+        **1. Limpeza Química e Normalização**
+        - Conversão para SMILES canônico (RDKit).
+        - Remoção de sais e solventes.
+        - Seleção do maior fragmento orgânico.
+        - Remoção de metais e inorgânicos.
+        
+        **2. Tratamento de Atividade e Unidades**
+        - Conversão automática de unidades (uM, mM, M) para **nM**.
+        - Cálculo de **pIC50** (-log10[M]) se solicitado.
+        
+        **3. Gestão de Duplicatas**
+        - Identificação de compostos idênticos (mesmo SMILES).
+        - **Concordantes:** Média dos valores de atividade.
+        - **Discordantes:** Removidos se a variação for maior que 1 log (10x).
+        
+        **4. Classificação Binária**
+        - Definição de **Ativos (1)** e **Inativos (0)** com base no limiar (cutoff) definido (ex: 100 nM ou pIC50 7.0).
+        """,
+        "settings": "Configurações",
+        "upload_label": "Upload Arquivo ChEMBL (CSV/Excel)",
+        "curation_params": "Parâmetros de Curadoria",
+        "cutoff_unit": "Unidade de Corte",
+        "cutoff_nm_label": "Corte de Atividade (nM)",
+        "cutoff_pic50_label": "Corte de Atividade (pIC50/pEC50)",
+        "cutoff_pic50_help": "Compostos com pIC50 >= a este valor serão considerados ATIVOS (1).",
+        "calc_pic50": "Calcular pIC50 (-log10)",
+        "run_btn": "Executar Curadoria",
+        "preview_header": "Prévia dos Dados Originais",
+        "status_running": "Executando Pipeline...",
+        "status_init": "Inicializando curadoria...",
+        "status_complete": "Curadoria Concluída!",
+        "success_msg": "Sucesso! {} compostos únicos processados.",
+        "total_orig": "Total Original",
+        "total_final": "Total Final",
+        "removed": "Compostos Removidos",
+        "curated_header": "Dados Curados",
+        "download_csv": "📥 CSV Completo",
+        "download_actives": "📥 Ativos (XLSX)",
+        "download_inactives": "📥 Inativos (XLSX)",
+        "dist_header": "📊 Análise de Distribuição",
+        "actives": "Ativos (1)",
+        "inactives": "Inativos (0)",
+        "active_singular": "Ativo",
+        "inactive_singular": "Inativo",
+        "outlier_header": "🔍 Análise de Outliers",
+        "expander_outlier": "Ver Detalhes dos Outliers",
+        "analyzing_dist": "Analisando distribuição de:",
+        "mean": "Média",
+        "std": "Desvio Padrão",
+        "potential_outliers": "Potenciais Outliers (>3σ)",
+        "outlier_warning": "Foram encontrados {} compostos muito distantes da média (3σ).",
+        "outlier_none": "Dados insuficientes para análise de outliers.",
+        "chem_space_header": "🧪 Análise do Espaço Químico",
+        "expander_chem_space": "Gerar Visualização do Espaço Químico (PCA)",
+        "chem_space_info": "Esta análise gera fingerprints moleculares e usa PCA.",
+        "nbits": "Número de Bits",
+        "radius": "Raio (Morgan)",
+        "gen_map_btn": "Gerar Mapa Químico",
+        "map_title": "Mapa do Espaço Químico (PCA)",
+        "var_explained": "Variância Explicada",
+        "model_header": "🤖 Modelagem QSAR (Machine Learning)",
+        "model_expander": "Construir e Avaliar Modelos",
+        "model_intro": "Treine modelos preditivos usando os dados curados.",
+        "calc_modi": "🔍 Calcular Índice de Modelabilidade (MODI)",
+        "modi_spinner": "Calculando MODI...",
+        "modi_high": "**Alta Modelabilidade!** (MODI >= 0.65).",
+        "modi_low": "**Baixa Modelabilidade.** (MODI < 0.65).",
+        "select_models": "Escolha os Modelos",
+        "test_split": "Tamanho do Conjunto de Teste (%)",
+        "test_split_help": "Porcentagem reservada para teste.",
+        "test_split_explanation": "O conjunto de teste é separado para avaliar o modelo em dados nunca vistos. Recomendado: 20%.",
+        "train_btn": "Treinar Modelos",
+        "warn_select_model": "Selecione pelo menos um modelo.",
+        "training_spinner": "Preparando dados e treinando modelos...",
+        "training_success": "Treinamento Concluído!",
+        "metrics_header": "📊 Métricas de Performance",
+        "roc_header": "📈 Curvas ROC",
+        "viz_header": "📊 Comparação Visual de Métricas",
+        "download_models_header": "💾 Download dos Modelos (.pkl)",
+        "download_models_text": "Baixe o arquivo do modelo treinado.",
+        "error_insufficient": "Dados insuficientes.",
+        "failed_models": "Alguns modelos falharam durante o treinamento:",
+        "all_failed": "Todos os modelos falharam.",
+        "empty_results": "Resultados vazios.",
+        "error_prefix": "Erro",
+        "best_model_header": "🏆 Melhor Modelo Sugerido",
+        "best_model_rec": "Com base no **MCC**, o modelo recomendado é: **{}**.",
+        "best_model_metrics": "Performance: MCC={:.3f}, Acurácia={:.3f}, F1={:.3f}.",
+        "download_report_btn": "📄 Baixar Relatório Completo (PDF)",
+        "report_filename": "relatorio_qsar_melhor_modelo.pdf",
+        "report_title": "RELATÓRIO DE MODELAGEM QSAR",
+        "report_summary_sec": "1. RESUMO E RECOMENDAÇÃO",
+        "report_best_model": "Melhor Modelo Sugerido: {}",
+        "report_rationale": "Critério de escolha: Maior Índice de Correlação de Matthews (MCC).",
+        "report_dataset_sec": "2. INFORMAÇÕES DO DATASET",
+        "report_models_sec": "3. PERFORMANCE DOS MODELOS",
+        "report_footer": "Gerado automaticamente por QSAR Data Curation Tool."
+    },
+    "English": {
+        "title": "💊 QSAR Data Curation",
+        "intro_text": "This tool performs automatic curation of ChEMBL data for QSAR studies.",
+        "pipeline_expander": "ℹ️ Curation Pipeline Details",
+        "pipeline_desc": """
+        **1. Chemical Cleaning & Normalization**
+        - Canonical SMILES conversion (RDKit).
+        - Salt and solvent removal.
+        - Largest organic fragment selection.
+        - Metal/inorganic removal.
+        
+        **2. Activity Treatment**
+        - Automatic unit conversion to **nM**.
+        - **pIC50** calculation if requested.
+        
+        **3. Duplicate Management**
+        - Identification of identical compounds.
+        - **Concordant:** Average of values.
+        - **Discordant:** Removed if variation > 1 log.
+        
+        **4. Classification**
+        - **Active (1)** / **Inactive (0)** based on cutoff.
+        """,
+        "settings": "Settings",
+        "upload_label": "Upload ChEMBL File (CSV/Excel)",
+        "curation_params": "Curation Parameters",
+        "cutoff_unit": "Cutoff Unit",
+        "cutoff_nm_label": "Activity Cutoff (nM)",
+        "cutoff_pic50_label": "Activity Cutoff (pIC50/pEC50)",
+        "cutoff_pic50_help": "Compounds with pIC50 >= this value are ACTIVE (1).",
+        "calc_pic50": "Calculate pIC50 (-log10)",
+        "run_btn": "Run Curation",
+        "preview_header": "Original Data Preview",
+        "status_running": "Running Pipeline...",
+        "status_init": "Initializing curation...",
+        "status_complete": "Curation Complete!",
+        "success_msg": "Success! {} unique compounds processed.",
+        "total_orig": "Original Total",
+        "total_final": "Final Total",
+        "removed": "Removed Compounds",
+        "curated_header": "Curated Data",
+        "download_csv": "📥 Full CSV",
+        "download_actives": "📥 Actives (XLSX)",
+        "download_inactives": "📥 Inactives (XLSX)",
+        "dist_header": "📊 Distribution Analysis",
+        "actives": "Actives (1)",
+        "inactives": "Inactives (0)",
+        "active_singular": "Active",
+        "inactive_singular": "Inactive",
+        "outlier_header": "🔍 Outlier Analysis",
+        "expander_outlier": "View Outlier Details",
+        "analyzing_dist": "Analyzing distribution of:",
+        "mean": "Mean",
+        "std": "Std Dev",
+        "potential_outliers": "Potential Outliers (>3σ)",
+        "outlier_warning": "Found {} compounds far from mean (3σ).",
+        "outlier_none": "Insufficient data for outlier analysis.",
+        "chem_space_header": "🧪 Chemical Space Analysis",
+        "expander_chem_space": "Generate Chemical Space Visualization (PCA)",
+        "chem_space_info": "Generates molecular fingerprints and uses PCA.",
+        "nbits": "Number of Bits",
+        "radius": "Radius (Morgan)",
+        "gen_map_btn": "Generate Chemical Map",
+        "map_title": "Chemical Space Map (PCA)",
+        "var_explained": "Variance Explained",
+        "model_header": "🤖 QSAR Modeling (Machine Learning)",
+        "model_expander": "Build and Evaluate Models",
+        "model_intro": "Train predictive models using curated data.",
+        "calc_modi": "🔍 Calculate Modelability Index (MODI)",
+        "modi_spinner": "Calculating MODI...",
+        "modi_high": "**High Modelability!** (MODI >= 0.65).",
+        "modi_low": "**Low Modelability.** (MODI < 0.65).",
+        "select_models": "Choose Models",
+        "test_split": "Test Set Size (%)",
+        "test_split_help": "Percentage reserved for testing.",
+        "test_split_explanation": "The test set is reserved to evaluate the model on unseen data. Recommended: 20%.",
+        "train_btn": "Train Models",
+        "warn_select_model": "Select at least one model.",
+        "training_spinner": "Preparing data and training models...",
+        "training_success": "Training Complete!",
+        "metrics_header": "📊 Performance Metrics",
+        "roc_header": "📈 ROC Curves",
+        "viz_header": "📊 Visual Metrics Comparison",
+        "download_models_header": "💾 Download Models (.pkl)",
+        "download_models_text": "Download trained model file.",
+        "error_insufficient": "Insufficient data.",
+        "failed_models": "Some models failed during training:",
+        "all_failed": "All models failed.",
+        "empty_results": "Empty results.",
+        "error_prefix": "Error",
+        "best_model_header": "🏆 Best Model Suggestion",
+        "best_model_rec": "Based on **MCC**, the recommended model is: **{}**.",
+        "best_model_metrics": "Performance: MCC={:.3f}, Accuracy={:.3f}, F1={:.3f}.",
+        "download_report_btn": "📄 Download Full Report (PDF)",
+        "report_filename": "qsar_modeling_report.pdf",
+        "report_title": "QSAR MODELING REPORT",
+        "report_summary_sec": "1. SUMMARY & RECOMMENDATION",
+        "report_best_model": "Best Model Suggestion: {}",
+        "report_rationale": "Selection Criterion: Highest Matthews Correlation Coefficient (MCC).",
+        "report_dataset_sec": "2. DATASET INFORMATION",
+        "report_models_sec": "3. MODEL PERFORMANCE",
+        "report_footer": "Generated automatically by QSAR Data Curation Tool."
+    },
+    "Deutsch": {
+        "title": "💊 QSAR-Datenkuration",
+        "intro_text": "Dieses Tool führt eine automatische Kuration von ChEMBL-Daten durch.",
+        "pipeline_expander": "ℹ️ Details zur Kurations-Pipeline",
+        "pipeline_desc": """
+        **1. Chemische Reinigung**
+        - SMILES-Konvertierung (RDKit).
+        - Entfernung von Salzen/Lösungsmitteln.
+        
+        **2. Aktivität**
+        - Umrechnung in **nM**.
+        - Berechnung von **pIC50**.
+        
+        **3. Duplikate**
+        - Mittelwert oder Entfernung.
+        
+        **4. Klassifizierung**
+        - **Aktiv (1)** / **Inaktiv (0)**.
+        """,
+        "settings": "Einstellungen",
+        "upload_label": "ChEMBL-Datei hochladen (CSV/Excel)",
+        "curation_params": "Kurationsparameter",
+        "cutoff_unit": "Grenzwert-Einheit",
+        "cutoff_nm_label": "Aktivitätsgrenzwert (nM)",
+        "cutoff_pic50_label": "Aktivitätsgrenzwert (pIC50/pEC50)",
+        "cutoff_pic50_help": "Verbindungen mit pIC50 >= Wert sind AKTIV (1).",
+        "calc_pic50": "Berechne pIC50 (-log10)",
+        "run_btn": "Kuration ausführen",
+        "preview_header": "Vorschau",
+        "status_running": "Pipeline läuft...",
+        "status_init": "Initialisierung...",
+        "status_complete": "Kuration fertig!",
+        "success_msg": "Erfolg! {} Verbindungen verarbeitet.",
+        "total_orig": "Original",
+        "total_final": "Endgültig",
+        "removed": "Entfernt",
+        "curated_header": "Kuratierte Daten",
+        "download_csv": "📥 CSV",
+        "download_actives": "📥 Aktive (XLSX)",
+        "download_inactives": "📥 Inaktive (XLSX)",
+        "dist_header": "📊 Verteilung",
+        "actives": "Aktiv (1)",
+        "inactives": "Inaktiv (0)",
+        "active_singular": "Aktiv",
+        "inactive_singular": "Inaktiv",
+        "outlier_header": "🔍 Ausreißer",
+        "expander_outlier": "Details anzeigen",
+        "analyzing_dist": "Analyse von:",
+        "mean": "Mittelwert",
+        "std": "StdAbw",
+        "potential_outliers": "Potenzielle Ausreißer (>3σ)",
+        "outlier_warning": "{} Ausreißer gefunden.",
+        "outlier_none": "Zu wenig Daten.",
+        "chem_space_header": "🧪 Chemischer Raum",
+        "expander_chem_space": "Visualisierung generieren (PCA)",
+        "chem_space_info": "Generiert Fingerprints und nutzt PCA.",
+        "nbits": "Bits",
+        "radius": "Radius",
+        "gen_map_btn": "Karte generieren",
+        "map_title": "Chemischer Raum (PCA)",
+        "var_explained": "Erklärte Varianz",
+        "model_header": "🤖 QSAR-Modellierung",
+        "model_expander": "Modelle erstellen",
+        "model_intro": "Modelle trainieren mit kuratierten Daten.",
+        "calc_modi": "🔍 MODI berechnen",
+        "modi_spinner": "MODI berechnen...",
+        "modi_high": "**Hoch!** (MODI >= 0.65).",
+        "modi_low": "**Niedrig.** (MODI < 0.65).",
+        "select_models": "Modelle wählen",
+        "test_split": "Test-Größe (%)",
+        "test_split_help": "% für Test reserviert.",
+        "test_split_explanation": "Der Testdatensatz dient zur Bewertung an unbekannten Daten. Empfohlen: 20%.",
+        "train_btn": "Training starten",
+        "warn_select_model": "Bitte Modell wählen.",
+        "training_spinner": "Training läuft...",
+        "training_success": "Training fertig!",
+        "metrics_header": "📊 Metriken",
+        "roc_header": "📈 ROC-Kurven",
+        "viz_header": "📊 Visueller Vergleich",
+        "download_models_header": "💾 Modelle laden (.pkl)",
+        "download_models_text": "Modell zur Wiederverwendung speichern.",
+        "error_insufficient": "Zu wenig Daten.",
+        "failed_models": "Fehler bei einigen Modellen:",
+        "all_failed": "Alle Modelle fehlgeschlagen.",
+        "empty_results": "Keine Ergebnisse.",
+        "error_prefix": "Fehler",
+        "best_model_header": "🏆 Bester Modellvorschlag",
+        "best_model_rec": "Basierend auf **MCC** ist das empfohlene Modell: **{}**.",
+        "best_model_metrics": "Leistung: MCC={:.3f}, Genauigkeit={:.3f}, F1={:.3f}.",
+        "download_report_btn": "📄 Vollständigen Bericht herunterladen (PDF)",
+        "report_filename": "qsar_modellierung_bericht.pdf",
+        "report_title": "QSAR-MODELLIERUNGSBERICHT",
+        "report_summary_sec": "1. ZUSAMMENFASSUNG & EMPFEHLUNG",
+        "report_best_model": "Bestes Modell: {}",
+        "report_rationale": "Auswahlkriterium: Höchster Matthews-Korrelationskoeffizient (MCC).",
+        "report_dataset_sec": "2. DATASET-INFORMATIONEN",
+        "report_models_sec": "3. MODELLLEISTUNG",
+        "report_footer": "Automatisch generiert vom QSAR Data Curation Tool."
+    }
+}
