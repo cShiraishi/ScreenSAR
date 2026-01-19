@@ -13,7 +13,7 @@ class ModeladorQSAR:
     def __init__(self, df_input):
         self.df = df_input.copy()
 
-    def gerar_dados(self, n_bits=1024, radius=2):
+    def gerar_dados(self, n_bits=1024, radius=2, descriptor_type="Morgan"):
         """Gera X (fingerprints) e y (outcome)"""
         fps = []
         outcomes = []
@@ -29,7 +29,14 @@ class ModeladorQSAR:
             try:
                 mol = Chem.MolFromSmiles(smiles)
                 if mol:
-                    fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=n_bits)
+                    if descriptor_type == "MACCS":
+                        from rdkit.Chem import MACCSkeys
+                        fp = MACCSkeys.GenMACCSKeys(mol)
+                    elif descriptor_type == "RDKit":
+                        fp = Chem.RDKFingerprint(mol, maxPath=7, fpSize=n_bits, nBitsPerHash=2)
+                    else: # Default or Morgan
+                        fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=n_bits)
+                        
                     fps.append(np.array(fp))
                     outcomes.append(int(outcome))
                     valid_indices.append(idx)
@@ -38,7 +45,7 @@ class ModeladorQSAR:
         
         X = np.array(fps)
         y = np.array(outcomes)
-        return X, y
+        return X, y, valid_indices
 
     def treinar_avaliar(self, X, y, modelos_selecionados, test_size=0.2, random_state=42):
         """

@@ -131,8 +131,8 @@ class CuradoriaQSAR:
         print(f"--- Finalizado. Total de Compostos Únicos: {len(df_final)} ---")
         return df_final
 
-    def gerar_fingerprints(self, df_input, n_bits=1024, radius=2):
-        """Gera Morgan Fingerprints para uma coluna de SMILES"""
+    def gerar_fingerprints(self, df_input, n_bits=1024, radius=2, descriptor_type="Morgan"):
+        """Gera Fingerprints para uma coluna de SMILES"""
         fps = []
         valid_indices = []
         
@@ -141,7 +141,14 @@ class CuradoriaQSAR:
             try:
                 mol = Chem.MolFromSmiles(smiles)
                 if mol:
-                    fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=n_bits)
+                    if descriptor_type == "MACCS":
+                        from rdkit.Chem import MACCSkeys
+                        fp = MACCSkeys.GenMACCSKeys(mol)
+                    elif descriptor_type == "RDKit":
+                        fp = Chem.RDKFingerprint(mol, maxPath=7, fpSize=n_bits, nBitsPerHash=2)
+                    else: # Morgan
+                        fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=n_bits)
+                        
                     fps.append(np.array(fp))
                     valid_indices.append(idx)
             except:

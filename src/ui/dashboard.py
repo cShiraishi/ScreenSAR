@@ -3,6 +3,7 @@ import pandas as pd
 import altair as alt
 import io
 import pickle
+import numpy as np
 from src.core.curation import CuradoriaQSAR
 from src.core.modeling import ModeladorQSAR
 from src.utils.report import create_pdf_report
@@ -137,8 +138,8 @@ def render_dashboard(config):
             st.info(t['chem_space_info'])
             
             col_fp1, col_fp2 = st.columns(2)
-            n_bits = col_fp1.selectbox(t['nbits'], [1024, 2048, 512], index=0)
-            radius = col_fp2.number_input(t['radius'], min_value=1, max_value=4, value=2)
+            n_bits = col_fp1.selectbox(t['nbits'], [1024, 2048, 512], index=0, key='pca_nbits')
+            radius = col_fp2.number_input(t['radius'], min_value=1, max_value=4, value=2, key='pca_radius')
             
             if st.button(t['gen_map_btn']):
                 try:
@@ -146,7 +147,20 @@ def render_dashboard(config):
                     
                     with st.spinner("Generating..."):
                         curador_pca = CuradoriaQSAR(df_result)
-                        fps, valid_idxs = curador_pca.gerar_fingerprints(df_result, n_bits=n_bits, radius=radius)
+                        # Use global descriptor type or default to Morgan for PCA if strictly needed? 
+                        # Actually, let's use the one from config if available, otherwise default.
+                        dt = config.get('descriptor_type', 'Morgan')
+                        fps, valid_idxs = curador_pca.gerar_fingerprints(df_result, n_bits=n_bits, radius=radius, descriptor_type=dt) 
+                        # Wait, CuradoriaQSAR doesn't have gerar_fingerprints? It was likely a hallucination in the view or I missed it.
+                        # Checking view of dashboard.py line 149: `fps, valid_idxs = curador_pca.gerar_fingerprints(...)`
+                        # My previous view of `modeling.py` showed `ModeladorQSAR` has `gerar_dados`. 
+                        # `CuradoriaQSAR` is in `curation.py`. 
+                        # Ah, the PCA block uses `CuradoriaQSAR`. Does it have `gerar_fingerprints`?
+                        # I must check `src/core/curation.py`.
+                        # If `CuradoriaQSAR` has `gerar_fingerprints`, I need to update THAT too.
+                        # But `ModeladorQSAR` was updated.
+                        # Let's pause and check `curation.py`.
+
                         
                         if len(fps) > 2:
                             pca = PCA(n_components=2)
@@ -194,7 +208,10 @@ def render_dashboard(config):
             if st.button(t['calc_modi']):
                 with st.spinner(t['modi_spinner']):
                     modelador_modi = ModeladorQSAR(df_result)
-                    X_modi, y_modi = modelador_modi.gerar_dados()
+                    desc_type_modi = config.get('descriptor_type', 'Morgan')
+                    nb_modi = config.get('n_bits', 1024)
+                    rad_modi = config.get('radius', 2)
+                    X_modi, y_modi, _ = modelador_modi.gerar_dados(n_bits=nb_modi, radius=rad_modi, descriptor_type=desc_type_modi)
                     
                     if len(y_modi) > 5:
                         modi_val = modelador_modi.calcular_modi(X_modi, y_modi)
@@ -235,7 +252,13 @@ def render_dashboard(config):
                     try:
                         with st.spinner(t['training_spinner']):
                             modelador = ModeladorQSAR(df_result)
-                            X, y = modelador.gerar_dados(n_bits=1024, radius=2)
+                            
+                            # Params
+                            nb = config.get('n_bits', 1024)
+                            rad = config.get('radius', 2)
+                            dt = config.get('descriptor_type', 'Morgan')
+                            
+                            X, y, _ = modelador.gerar_dados(n_bits=nb, radius=rad, descriptor_type=dt)
                             
                             if len(y) < 20:
                                  st.error(t['error_insufficient'])
@@ -307,13 +330,41 @@ def render_dashboard(config):
                                  t['inactives']: str(inactives)
                              }
                              
+                             # Generate ROC Image for Report if roc_data exists
+                             temp_roc_path = None
+                             if roc_data:
+                                 import matplotlib.pyplot as plt
+                                 import tempfile
+                                 import os
+                                 
+                                 plt.figure(figsize=(8, 6))
+                                 for model_name, data in roc_data.items():
+                                     plt.plot(data['fpr'], data['tpr'], label=f"{model_name} (AUC = {data['auc']:.2f})")
+                                 
+                                 plt.plot([0, 1], [0, 1], 'k--', label='Random')
+                                 plt.xlabel('False Positive Rate')
+                                 plt.ylabel('True Positive Rate')
+                                 plt.title('ROC Curve Comparison')
+                                 plt.legend(loc="lower right")
+                                 
+                                 # Save to temp file
+                                 fd, temp_roc_path = tempfile.mkstemp(suffix=".png")
+                                 os.close(fd)
+                                 plt.savefig(temp_roc_path, bbox_inches='tight', dpi=150)
+                                 plt.close()
+                             
                              pdf_bytes = create_pdf_report(
                                  results_success, 
                                  best_model_name, 
                                  dataset_stats, 
-                                 logo_path="logo.png",
-                                 lang=lang
+                                 logo_path="assets/logo.png",
+                                 lang=lang,
+                                 roc_plot_path=temp_roc_path
                              )
+                             
+                             # Cleanup temp file
+                             if temp_roc_path and os.path.exists(temp_roc_path):
+                                 os.remove(temp_roc_path)
                              
                              st.download_button(
                                  label=t['download_report_btn'],
@@ -352,6 +403,57 @@ def render_dashboard(config):
                      else:
                          st.warning(t['all_failed'])
                          
+                     # ROC Curve Visualization
+                     if roc_data:
+                        st.divider()
+                        st.subheader(t.get('roc_header', 'ROC Curve')) # Fallback to 'ROC Curve' if key missing
+                        
+                        roc_df_list = []
+                        for model_name, data in roc_data.items():
+                             fpr = data['fpr']
+                             tpr = data['tpr']
+                             auc = data['auc']
+                             
+                             # Downsample for faster plotting if too many points
+                             if len(fpr) > 500:
+                                 indices = np.linspace(0, len(fpr) - 1, 500).astype(int)
+                                 fpr = fpr[indices]
+                                 tpr = tpr[indices]
+                             
+                             temp_df = pd.DataFrame({
+                                 'FPR': fpr,
+                                 'TPR': tpr,
+                                 'Model': f"{model_name} (AUC: {auc:.3f})"
+                             })
+                             roc_df_list.append(temp_df)
+                        
+                        if roc_df_list:
+                             import numpy as np # Ensure numpy is available within scope if needed
+                             all_roc_df = pd.concat(roc_df_list, ignore_index=True)
+                             
+                             # Base chart for models
+                             roc_chart = alt.Chart(all_roc_df).mark_line().encode(
+                                 x=alt.X('FPR', title='False Positive Rate'),
+                                 y=alt.Y('TPR', title='True Positive Rate'),
+                                 color=alt.Color('Model', title='Model'),
+                                 tooltip=['Model', 'FPR', 'TPR']
+                             )
+                             
+                             # Random guess line
+                             random_guess = pd.DataFrame({'FPR': [0, 1], 'TPR': [0, 1]})
+                             line_chart = alt.Chart(random_guess).mark_line(strokeDash=[5, 5], color='black').encode(
+                                 x='FPR',
+                                 y='TPR'
+                             )
+                             
+                             final_roc_chart = (roc_chart + line_chart).properties(
+                                 title='Multi-Model ROC Curve',
+                                 width=600,
+                                 height=500
+                             ).interactive()
+                             
+                             st.altair_chart(final_roc_chart, use_container_width=True)
+
                      # Download Section
                      trained_models = st.session_state.get('trained_models')
                      if trained_models:
@@ -361,7 +463,19 @@ def render_dashboard(config):
                          
                          cols = st.columns(len(trained_models))
                          for i, (name, model) in enumerate(trained_models.items()):
-                             model_pkl = pickle.dumps(model)
+                             # Wrap model with metadata
+                             model_package = {
+                                 "model": model,
+                                 "metadata": {
+                                     "name": name,
+                                     "descriptor_type": config.get('descriptor_type', 'Morgan'),
+                                     "n_bits": config.get('n_bits', 1024),
+                                     "radius": config.get('radius', 2),
+                                     "version": "1.0"
+                                 }
+                             }
+                             model_pkl = pickle.dumps(model_package)
+                             
                              col_idx = i % 3
                              if i % 3 == 0 and i > 0:
                                  st.write("")

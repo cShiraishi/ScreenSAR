@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 
 class PDFReport(FPDF):
-    def __init__(self, logo_path="logo.png", title="QSAR Modeling Report"):
+    def __init__(self, logo_path="assets/logo.png", title="QSAR Modeling Report"):
         super().__init__()
         self.logo_path = logo_path
         self.report_title = title
@@ -54,7 +54,136 @@ class PDFReport(FPDF):
         self.set_font('Arial', '', 10)
         self.cell(50, 6, str(value), 0, 1)
 
-def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="logo.png", lang="English"):
+def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="logo.png", lang="English", roc_plot_path=None):
+    pdf = PDFReport(logo_path=logo_path, title="QSAR Modeling Report")
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    
+    # Translations for headers
+    t = {
+        "English": {
+            "summary": "1. Executive Summary & Recommendation",
+            "best": "Best Model Recommendation:",
+            "rationale": "Based on the highest Matthews Correlation Coefficient (MCC), the recommended model is:",
+            "dataset": "2. Dataset Information",
+            "models": "3. Model Performance Comparison",
+            "roc": "4. ROC Curve Analysis",
+            "metric": "Metric",
+            "value": "Value"
+        },
+        "Português": {
+            "summary": "1. Resumo Executivo e Recomendação",
+            "best": "Recomendação de Melhor Modelo:",
+            "rationale": "Baseado no maior Índice de Correlação de Matthews (MCC), o modelo recomendado é:",
+            "dataset": "2. Informações do Dataset",
+            "models": "3. Comparação de Performance dos Modelos",
+            "roc": "4. Análise da Curva ROC",
+            "metric": "Métrica",
+            "value": "Valor"
+        },
+        "Deutsch": {
+            "summary": "1. Zusammenfassung & Empfehlung",
+            "best": "Empfohlenes Modell:",
+            "rationale": "Basierend auf dem höchsten Matthews-Korrelationskoeffizienten (MCC) ist das empfohlene Modell:",
+            "dataset": "2. Dataset-Informationen",
+            "models": "3. Modellleistungsvergleich",
+            "roc": "4. ROC-Kurvenanalyse",
+            "metric": "Metrik",
+            "value": "Wert"
+        }
+    }
+    
+    current_t = t.get(lang, t["English"])
+    
+    # 1. Executive Summary
+    pdf.chapter_title(current_t["summary"])
+    
+    # Highlight Box for Best Model
+    pdf.set_fill_color(240, 255, 240) # Light green
+    pdf.set_draw_color(0, 100, 0)
+    pdf.rect(10, pdf.get_y(), 190, 25, 'FD')
+    
+    pdf.set_xy(15, pdf.get_y() + 5)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 5, current_t["best"], 0, 1)
+    
+    pdf.set_xy(15, pdf.get_y())
+    pdf.set_font('Arial', 'B', 14)
+    pdf.set_text_color(0, 100, 0)
+    pdf.cell(0, 10, best_model_name, 0, 1)
+    
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(10)
+    
+    pdf.chapter_body(current_t["rationale"])
+    
+    # 2. Dataset Info
+    pdf.chapter_title(current_t["dataset"])
+    for key, value in dataset_stats.items():
+        pdf.add_metric_card(key, value)
+    pdf.ln()
+    
+    # 3. Model Comparisons Table
+    pdf.chapter_title(current_t["models"])
+    
+    # Table Header
+    pdf.set_font('Arial', 'B', 10)
+    pdf.set_fill_color(200, 200, 200)
+    
+    # Dynamic columns based on df
+    # Select key metrics
+    cols = ["Modelo", "Acurácia", "MCC", "F1-Score", "AUC"]
+    # Ensure they exist
+    cols = [c for c in cols if c in results_df.columns]
+    
+    col_widths = [50] + [30] * (len(cols)-1)
+    
+    for i, col in enumerate(cols):
+        pdf.cell(col_widths[i], 7, col, 1, 0, 'C', 1)
+    pdf.ln()
+    
+    # Table Rows
+    pdf.set_font('Arial', '', 10)
+    fill = False
+    for index, row in results_df.iterrows():
+        # Highlight best model row?
+        is_best = row["Modelo"] == best_model_name
+        if is_best:
+            pdf.set_font('Arial', 'B', 10)
+            pdf.set_fill_color(255, 255, 200) # Light yellow highlight
+            fill = True
+        else:
+            pdf.set_font('Arial', '', 10)
+            if fill: pdf.set_fill_color(245, 245, 245) # Alternating greys if we want, but let's stick to simple
+            fill = False
+
+        # If we want alternating rows, we can flip fill boolean
+        
+        for i, col in enumerate(cols):
+            val = row[col]
+            if isinstance(val, (float, int)) and col != "Modelo":
+                txt = f"{val:.3f}"
+            else:
+                txt = str(val)
+            
+            pdf.cell(col_widths[i], 7, txt, 1, 0, 'C', is_best)
+        pdf.ln()
+        
+    # 4. ROC Curve (Optional)
+    if roc_plot_path and os.path.exists(roc_plot_path):
+        pdf.ln(10)
+        # Check if enough space is available (approx 100 units for title + image)
+        # Standard A4 height is ~297. If Y > 200, we probably need a new page.
+        if pdf.get_y() > 200:
+            pdf.add_page()
+            
+        pdf.chapter_title(current_t["roc"])
+        # Center the image
+        # Page width 210, margins 10 -> usable 190. Image width e.g. 140
+        x_pos = (210 - 150) / 2
+        pdf.image(roc_plot_path, x=x_pos, w=150)
+        
+    return pdf.output(dest='S').encode('latin-1')
     pdf = PDFReport(logo_path=logo_path, title="QSAR Modeling Report")
     pdf.alias_nb_pages()
     pdf.add_page()
