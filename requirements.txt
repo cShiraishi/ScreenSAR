@@ -1,6 +1,6 @@
 pandas
 numpy
-rdkit-pypi
+rdkit
 fpdf
 openpyxl
 streamlit
