@@ -353,4 +353,8 @@ def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="log
             pdf.cell(col_widths[i], 7, txt, 1, 0, 'C', is_best)
         pdf.ln()
         
-    return pdf.output(dest='S').encode('latin-1')
+    out_val = pdf.output(dest='S')
+    # Handle fpdf (str) vs fpdf2 (bytearray) differences
+    if isinstance(out_val, str):
+        return out_val.encode('latin-1')
+    return bytes(out_val)
