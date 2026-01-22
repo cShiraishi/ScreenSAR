@@ -4,6 +4,7 @@ import altair as alt
 import io
 import pickle
 import numpy as np
+from datetime import datetime
 from src.core.curation import CuradoriaQSAR
 from src.core.modeling import ModeladorQSAR
 from src.utils.report import create_pdf_report
@@ -148,8 +149,13 @@ def render_dashboard(config):
                     with st.spinner("Generating..."):
                         curador_pca = CuradoriaQSAR(df_result)
                         # Use global descriptor type or default to Morgan for PCA if strictly needed? 
-                        # Actually, let's use the one from config if available, otherwise default.
-                        dt = config.get('descriptor_type', 'Morgan')
+                        # If "All" is selected, default to Morgan for visualization
+                        dt_config = config.get('descriptor_type', 'Morgan')
+                        if dt_config == "All":
+                            st.info("Visualizing with 'Morgan' descriptor because 'All' was selected.")
+                            dt = "Morgan"
+                        else:
+                            dt = dt_config
                         fps, valid_idxs = curador_pca.gerar_fingerprints(df_result, n_bits=n_bits, radius=radius, descriptor_type=dt) 
                         # Wait, CuradoriaQSAR doesn't have gerar_fingerprints? It was likely a hallucination in the view or I missed it.
                         # Checking view of dashboard.py line 149: `fps, valid_idxs = curador_pca.gerar_fingerprints(...)`
@@ -243,6 +249,20 @@ def render_dashboard(config):
             ) / 100.0
             st.caption(t['test_split_explanation'])
             
+            # Benchmark Checkbox
+            dt_config = config.get('descriptor_type', 'Morgan')
+            is_all = (dt_config == "All")
+            
+            # If "All" is selected, force benchmark to be checked
+            chk_value = True if is_all else False
+            chk_disabled = True if is_all else False
+            
+            do_benchmark = st.checkbox(
+                t.get('benchmark_label', "Benchmark All Descriptors (Morgan, MACCS, RDKit)"), 
+                value=chk_value,
+                disabled=chk_disabled
+            )
+            
             train_btn = st.button(t['train_btn'])
             
             if train_btn:
@@ -253,25 +273,59 @@ def render_dashboard(config):
                         with st.spinner(t['training_spinner']):
                             modelador = ModeladorQSAR(df_result)
                             
-                            # Params
+                            descriptors_to_run = []
+                            if do_benchmark or config.get('descriptor_type') == "All":
+                                descriptors_to_run = ["Morgan", "MACCS", "RDKit"]
+                            else:
+                                descriptors_to_run = [config.get('descriptor_type', 'Morgan')]
+                            
+                            all_results_list = []
+                            all_trained_models = {}
+                            all_roc_data = {}
+                            
+                            # Params for Morgan (others ignore these)
                             nb = config.get('n_bits', 1024)
                             rad = config.get('radius', 2)
-                            dt = config.get('descriptor_type', 'Morgan')
                             
-                            X, y, _ = modelador.gerar_dados(n_bits=nb, radius=rad, descriptor_type=dt)
-                            
-                            if len(y) < 20:
-                                 st.error(t['error_insufficient'])
-                            else:
-                                results, trained_models, roc_data = modelador.treinar_avaliar(
-                                    X, y, selected_models, test_size=test_split
-                                )
+                            for dt in descriptors_to_run:
+                                # Status update (optional if spinner is enough, but helpful)
+                                # st.toast(f"Running {dt}...") 
                                 
-                                st.session_state['modeling_results'] = results
-                                st.session_state['roc_data'] = roc_data
-                                st.session_state['trained_models'] = trained_models
+                                X, y, _ = modelador.gerar_dados(n_bits=nb, radius=rad, descriptor_type=dt)
+                                
+                                if len(y) < 20:
+                                     if not do_benchmark: st.error(t['error_insufficient'])
+                                     continue
+                                else:
+                                    results, trained, roc = modelador.treinar_avaliar(
+                                        X, y, selected_models, test_size=test_split
+                                    )
+                                    
+                                    # Rename models to include descriptor if benchmarking
+                                    if do_benchmark:
+                                        results['Modelo'] = results['Modelo'] + f" ({dt})"
+                                        
+                                        # Update keys in trained and roc dicts
+                                        # (Need to copy to avoid runtime error if we modified in place, but we can just make new dicts)
+                                        new_trained = {f"{k} ({dt})": v for k, v in trained.items()}
+                                        new_roc = {f"{k} ({dt})": v for k, v in roc.items()}
+                                        
+                                        trained = new_trained
+                                        roc = new_roc
+                                    
+                                    all_results_list.append(results)
+                                    all_trained_models.update(trained)
+                                    all_roc_data.update(roc)
+                            
+                            if all_results_list:
+                                final_results = pd.concat(all_results_list, ignore_index=True)
+                                st.session_state['modeling_results'] = final_results
+                                st.session_state['roc_data'] = all_roc_data
+                                st.session_state['trained_models'] = all_trained_models
                                 
                                 st.success(t['training_success'])
+                            else:
+                                st.error("No successful training runs.")
 
                     except Exception as e:
                         st.error(t['error_generic'].format(e))
@@ -353,13 +407,23 @@ def render_dashboard(config):
                                  plt.savefig(temp_roc_path, bbox_inches='tight', dpi=150)
                                  plt.close()
                              
+                             # Prepare parameters for report
+                             model_params = {
+                                 "Descriptor Type": config.get('descriptor_type', 'Morgan'),
+                                 "Bits": config.get('n_bits', 1024),
+                                 "Radius": config.get('radius', 2),
+                                 "Test Split": f"{test_split:.0%}",
+                                 "Calculation Date": datetime.now().strftime("%Y-%m-%d %H:%M")
+                             }
+
                              pdf_bytes = create_pdf_report(
                                  results_success, 
                                  best_model_name, 
                                  dataset_stats, 
                                  logo_path="assets/logo.png",
                                  lang=lang,
-                                 roc_plot_path=temp_roc_path
+                                 roc_plot_path=temp_roc_path,
+                                 params=model_params
                              )
                              
                              # Cleanup temp file
@@ -388,16 +452,17 @@ def render_dashboard(config):
                              df_melted = results_success.melt(id_vars=["Modelo"], value_vars=valid_metrics, var_name="Métrica", value_name="Valor")
                              
                              chart = alt.Chart(df_melted).mark_bar().encode(
-                                 x=alt.X('Métrica', axis=None),
-                                 y=alt.Y('Valor', title='Score'),
-                                 color='Métrica',
-                                 column=alt.Column('Modelo', header=alt.Header(titleOrient="bottom", labelOrient="bottom")),
-                                 tooltip=['Modelo', 'Métrica', alt.Tooltip('Valor', format='.3f')]
-                             ).properties(
-                                 width=80
-                             ).configure_view(
-                                 stroke='transparent'
-                             )
+                                  y=alt.Y('Métrica', axis=None),
+                                  x=alt.X('Valor', title='Score'),
+                                  color='Métrica',
+                                  row=alt.Row('Modelo', header=alt.Header(labelAngle=0, labelAlign='left')),
+                                  tooltip=['Modelo', 'Métrica', alt.Tooltip('Valor', format='.3f')]
+                              ).properties(
+                                  height=len(valid_metrics) * 15, 
+                                  width=500
+                              ).configure_view(
+                                  stroke='transparent'
+                              )
                              
                              st.altair_chart(chart)
                      else:

@@ -97,7 +97,11 @@ class ModeladorQSAR:
                         "MCC": mcc,
                         "Sensibilidade": sens,
                         "Especificidade": spec,
-                        "AUC": auc
+                        "AUC": auc,
+                        "TP": tp,
+                        "TN": tn,
+                        "FP": fp,
+                        "FN": fn
                     })
                     
                     trained_models[nome_modelo] = clf

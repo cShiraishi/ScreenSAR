@@ -3,6 +3,32 @@ import pandas as pd
 import pickle
 import numpy as np
 from src.core.curation import CuradoriaQSAR
+from contextlib import contextmanager
+from sklearn.linear_model import LogisticRegression
+
+@contextmanager
+def patched_logistic_regression():
+    """Context manager to handle backward compatibility for LogisticRegression models."""
+    original_setstate = getattr(LogisticRegression, '__setstate__', None)
+
+    def new_setstate(self, state):
+        if 'multi_class' not in state:
+            state['multi_class'] = 'ovr' # Default for older versions (<=0.19)
+        if original_setstate:
+            original_setstate(self, state)
+        else:
+            self.__dict__.update(state)
+
+    LogisticRegression.__setstate__ = new_setstate
+    try:
+        yield
+    finally:
+        if original_setstate:
+            LogisticRegression.__setstate__ = original_setstate
+        else:
+            del LogisticRegression.__setstate__
+
+
 
 def render_prediction_page(config):
     t = config['t']
@@ -23,7 +49,9 @@ def render_prediction_page(config):
     model_data = None
     if uploaded_model:
         try:
-            model_package = pickle.load(uploaded_model)
+            with patched_logistic_regression():
+                model_package = pickle.load(uploaded_model)
+
             
             # Check if it's the new format (dict with metadata) or old (raw model)
             if isinstance(model_package, dict) and "metadata" in model_package:
@@ -67,86 +95,147 @@ def render_prediction_page(config):
                     smiles_col = df_mols.columns[0] # Assume single column list
                 
                 if smiles_col:
-                    st.write(t['analyzed_mols'].format(len(df_mols), smiles_col))
+                    st.write(t['analyzed_mols'].format(len(df_mols) if not isinstance(df_mols, pd.io.parsers.TextFileReader) else "Large Dataset (Chunked)", smiles_col))
                     
                     if st.button(t['run_pred_btn']):
                         # Prepare data
                         meta = model_data['meta']
                         
-                        # Reuse CuradoriaQSAR for cleaning and fingerprint generation logic
-                        # We create a dummy df for curation util
-                        df_process = df_mols.copy()
-                        df_process['SMILES_Clean'] = df_process[smiles_col] # Simple copy, valid logic handles cleaning
-                        
-                        # Using Curation class to generate fingerprints
-                        # Note: We need to instantiate it. 
-                        curator = CuradoriaQSAR(pd.DataFrame({'Smiles': []})) # Dummy init
-                        
-                        # Manually generating fingerprints to ensure we match the meta
-                        fps = []
-                        valid_indices = []
-                        valid_smiles = []
-                        
-                        # Clean SMILES first (reuse curation logic if accessible or basic one)
-                        # We'll use the one in CuradoriaQSAR if possible, but let's just do direct generation for now to be safe
                         from rdkit import Chem
                         from rdkit.Chem import AllChem, MACCSkeys
                         
+                        # Configuration for chunks
+                        CHUNK_SIZE = 5000 
+                        
+                        # Helper generator to yield chunks
+                        def get_chunks(source, chunk_size):
+                            if isinstance(source, pd.io.parsers.TextFileReader):
+                                for chunk in source:
+                                    yield chunk
+                            elif isinstance(source, pd.DataFrame):
+                                total_rows = len(source)
+                                for i in range(0, total_rows, chunk_size):
+                                    yield source.iloc[i:i+chunk_size]
+                            else:
+                                raise ValueError("Unsupported data source")
+
+                        # Re-initialize reader for CSV if it was already consumed or needed to be cleanly read
+                        # But here 'df_mols' might be a DataFrame (Excel) or TextFileReader (CSV if we change read_csv above)
+                        
+                        # Let's adjust how we read the file initially to support this "generator" flow better.
+                        # Since we already read 'df_mols' above, let's refine that logic first.
+                        # Ideally, we should re-open the file if it's a stream, but streamlit file_uploader can be seeked.
+                        uploaded_mols.seek(0)
+                        
+                        is_csv = uploaded_mols.name.endswith('.csv') or uploaded_mols.name.endswith('.txt')
+                        
+                        if is_csv:
+                             # Count lines to estimate total
+                             total_steps = sum(1 for line in uploaded_mols) - 1 # Subtract header
+                             uploaded_mols.seek(0)
+                             
+                             # Read as iterator
+                             data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE)
+                        else:
+                             # Excel is already read into memory as df_mols because we can't chunk read easily
+                             # So we just chunk the dataframe
+                             data_source = df_mols
+                             total_steps = len(df_mols)
+                        
+                        # Progress Bar
                         progress_bar = st.progress(0)
+                        status_text = st.empty()
                         
-                        # Optimization: Batch processing not implemented here, simple loop
-                        count = 0
-                        total = len(df_mols)
+                        all_results = []
+                        total_processed = 0
+                        total_active = 0
                         
-                        for idx, row in df_process.iterrows():
-                            smi = row[smiles_col]
-                            if pd.isna(smi): continue
+                        # Iterate
+                        chunk_idx = 0
+                        total_scanned = 0
+                        
+                        for df_chunk in get_chunks(data_source, CHUNK_SIZE):
+                            chunk_idx += 1
+                            current_chunk_len = len(df_chunk)
+                            total_scanned += current_chunk_len
                             
-                            try:
-                                mol = Chem.MolFromSmiles(str(smi))
-                                if mol:
-                                    # Generate Descriptor based on Meta
-                                    desc_type = meta.get('descriptor_type', 'Morgan')
-                                    n_bits = meta.get('n_bits', 1024)
-                                    radius = meta.get('radius', 2)
-                                    
-                                    if desc_type == "MACCS":
-                                        fp = MACCSkeys.GenMACCSKeys(mol)
-                                    elif desc_type == "RDKit":
-                                        fp = Chem.RDKFingerprint(mol, maxPath=7, fpSize=n_bits, nBitsPerHash=2)
-                                    else:
-                                        fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=n_bits)
-                                        
-                                    fps.append(np.array(fp))
-                                    valid_indices.append(idx)
-                                    valid_smiles.append(smi)
-                            except:
-                                pass
+                            # Update progress with percentage
+                            if total_steps > 0:
+                                progress_val = min(total_scanned / total_steps, 1.0)
+                                progress_bar.progress(progress_val)
                             
-                            if idx % 100 == 0:
-                                progress_bar.progress(min(idx/total, 1.0))
+                            status_text.text(f"Processing chunk {chunk_idx}... (Total compounds scanned: {total_scanned})")
+                            
+                            # Valid rows
+                            valid_rows = []
+                            fps = []
+                            
+                            for idx, row in df_chunk.iterrows():
+                                smi = row.get(smiles_col)
+                                if pd.isna(smi): continue
                                 
-                        progress_bar.progress(1.0)
-                        
-                        if fps:
-                            X_pred = np.array(fps)
-                            y_pred = model_data['model'].predict(X_pred)
-                            y_proba = model_data['model'].predict_proba(X_pred)[:, 1] if hasattr(model_data['model'], 'predict_proba') else [0]*len(y_pred)
+                                try:
+                                    mol = Chem.MolFromSmiles(str(smi))
+                                    if mol:
+                                        desc_type = meta.get('descriptor_type', 'Morgan')
+                                        n_bits = meta.get('n_bits', 1024)
+                                        radius = meta.get('radius', 2)
+                                        
+                                        if desc_type == "MACCS":
+                                            fp = MACCSkeys.GenMACCSKeys(mol)
+                                        elif desc_type == "RDKit":
+                                            fp = Chem.RDKFingerprint(mol, maxPath=7, fpSize=n_bits, nBitsPerHash=2)
+                                        else:
+                                            fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=n_bits)
+                                            
+                                        fps.append(np.array(fp))
+                                        valid_rows.append(row)
+                                except:
+                                    pass
                             
-                            # Create Result DF
-                            df_res = df_mols.iloc[valid_indices].copy()
-                            df_res['Predicted_Class'] = y_pred
-                            df_res['Probability_Active'] = y_proba
-                            df_res['Prediction_Label'] = ["Active" if x==1 else "Inactive" for x in y_pred]
+                            if fps:
+                                X_pred = np.array(fps)
+                                y_pred = model_data['model'].predict(X_pred)
+                                y_proba = model_data['model'].predict_proba(X_pred)[:, 1] if hasattr(model_data['model'], 'predict_proba') else [0]*len(y_pred)
+                                
+                                # Create Chunk Result
+                                df_res_chunk = pd.DataFrame(valid_rows)
+                                df_res_chunk['Predicted_Class'] = y_pred
+                                df_res_chunk['Probability_Active'] = y_proba
+                                df_res_chunk['Prediction_Label'] = ["Active" if x==1 else "Inactive" for x in y_pred]
+                                
+                                all_results.append(df_res_chunk)
+                                total_processed += len(df_res_chunk)
+                                total_active += sum(y_pred)
+                            
+                            # Clean up memory
+                            del fps
+                            del valid_rows
+                            
+                        progress_bar.progress(1.0)
+                        status_text.text("Processing complete!")
+                        
+                        if all_results:
+                            final_df = pd.concat(all_results, ignore_index=True)
                             
                             st.subheader(t['pred_results_title'])
-                            st.write(t['pred_summary'].format(sum(y_pred), len(y_pred)))
+                            st.write(t['pred_summary'].format(total_active, total_processed))
                             
-                            st.dataframe(df_res.head())
+                            st.dataframe(final_df.head())
                             
                             # Download
-                            csv = df_res.to_csv(index=False).encode('utf-8')
+                            # Warning for massive files
+                            if len(final_df) > 100000:
+                                st.warning("Large result set. Converting to CSV might take a moment.")
+                                
+                            csv = final_df.to_csv(index=False).encode('utf-8')
                             st.download_button(t['download_pred'], csv, "prediction_results.csv", "text/csv")
+                            
+                            # Download Active Only
+                            df_active = final_df[final_df['Predicted_Class'] == 1]
+                            if not df_active.empty:
+                                csv_active = df_active.to_csv(index=False).encode('utf-8')
+                                st.download_button("Download Active Only", csv_active, "prediction_results_active.csv", "text/csv")
                             
                         else:
                             st.error(t['error_no_descriptors'])

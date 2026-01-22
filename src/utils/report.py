@@ -54,7 +54,7 @@ class PDFReport(FPDF):
         self.set_font('Arial', '', 10)
         self.cell(50, 6, str(value), 0, 1)
 
-def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="logo.png", lang="English", roc_plot_path=None):
+def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="logo.png", lang="English", roc_plot_path=None, params=None):
     pdf = PDFReport(logo_path=logo_path, title="QSAR Modeling Report")
     pdf.alias_nb_pages()
     pdf.add_page()
@@ -69,7 +69,9 @@ def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="log
             "models": "3. Model Performance Comparison",
             "roc": "4. ROC Curve Analysis",
             "metric": "Metric",
-            "value": "Value"
+            "value": "Value",
+            "params": "Model Configuration",
+            "conf_matrix": "Confusion Matrix (Best Model)"
         },
         "Português": {
             "summary": "1. Resumo Executivo e Recomendação",
@@ -79,7 +81,9 @@ def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="log
             "models": "3. Comparação de Performance dos Modelos",
             "roc": "4. Análise da Curva ROC",
             "metric": "Métrica",
-            "value": "Valor"
+            "value": "Valor",
+            "params": "Configuração do Modelo",
+            "conf_matrix": "Matriz de Confusão (Melhor Modelo)"
         },
         "Deutsch": {
             "summary": "1. Zusammenfassung & Empfehlung",
@@ -89,7 +93,9 @@ def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="log
             "models": "3. Modellleistungsvergleich",
             "roc": "4. ROC-Kurvenanalyse",
             "metric": "Metrik",
-            "value": "Wert"
+            "value": "Wert",
+            "params": "Modellkonfiguration",
+            "conf_matrix": "Verwechslungsmatrix (Bestes Modell)"
         }
     }
     
@@ -116,7 +122,59 @@ def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="log
     pdf.ln(10)
     
     pdf.chapter_body(current_t["rationale"])
+
+    # 1.1 Model Parameters (New)
+    if params:
+        pdf.ln(5)
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, current_t["params"], 0, 1)
+        pdf.set_font('Arial', '', 10)
+        for k, v in params.items():
+            pdf.cell(50, 6, f"{k}:", 0, 0)
+            pdf.cell(0, 6, str(v), 0, 1)
+        pdf.ln(5)
+
+    # 1.2 Confusion Matrix for Best Model (New)
+    # Check if TP/TN/FP/FN exist in df
+    best_row = results_df[results_df['Modelo'] == best_model_name].iloc[0] if not results_df[results_df['Modelo'] == best_model_name].empty else None
     
+    if best_row is not None and 'TP' in best_row and 'TN' in best_row:
+        pdf.ln(5)
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, current_t["conf_matrix"], 0, 1)
+        
+        # Simple Confusion Matrix Table
+        #      | Pred 1 | Pred 0
+        # True 1 |   TP   |   FN
+        # True 0 |   FP   |   TN
+        
+        tp, tn = int(best_row['TP']), int(best_row['TN'])
+        fp, fn = int(best_row['FP']), int(best_row['FN'])
+        
+        pdf.set_font('Arial', 'B', 10)
+        pdf.set_fill_color(230, 230, 230)
+        
+        # Headers
+        pdf.cell(30, 8, "", 0, 0)
+        pdf.cell(30, 8, "Pred Active", 1, 0, 'C', 1)
+        pdf.cell(30, 8, "Pred Inactive", 1, 1, 'C', 1)
+        
+        # Row 1 (Actual Active)
+        pdf.set_font('Arial', 'B', 10)
+        pdf.cell(30, 8, "Actual Active", 1, 0, 'C', 1)
+        pdf.set_font('Arial', '', 10)
+        pdf.cell(30, 8, str(tp), 1, 0, 'C') # TP
+        pdf.cell(30, 8, str(fn), 1, 1, 'C') # FN
+        
+        # Row 2 (Actual Inactive)
+        pdf.set_font('Arial', 'B', 10)
+        pdf.cell(30, 8, "Actual Inactive", 1, 0, 'C', 1)
+        pdf.set_font('Arial', '', 10)
+        pdf.cell(30, 8, str(fp), 1, 0, 'C') # FP
+        pdf.cell(30, 8, str(tn), 1, 1, 'C') # TN
+        
+        pdf.ln(5)
+            
     # 2. Dataset Info
     pdf.chapter_title(current_t["dataset"])
     for key, value in dataset_stats.items():

@@ -71,7 +71,7 @@ def render_sidebar():
         st.subheader("Molecular Descriptors")
         descriptor_type = st.selectbox(
             t.get('descriptor_label', 'Descriptor Type'), 
-            ["Morgan", "MACCS", "RDKit"],
+            ["Morgan", "MACCS", "RDKit", "All"],
             index=0,
             help=t.get('descriptor_help', 'Choose fingerprint type.')
         )
