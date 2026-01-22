@@ -1,8 +1,6 @@
-pandas
-numpy
-rdkit-pypi
-fpdf
-openpyxl
 streamlit
+rdkit
+pandas
 scikit-learn
-altair
+fpdf2
+openpyxl
