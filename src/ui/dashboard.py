@@ -7,7 +7,7 @@ import numpy as np
 from datetime import datetime
 from src.core.curation import CuradoriaQSAR
 from src.core.modeling import ModeladorQSAR
-from src.utils.report import create_pdf_report
+from src.utils.report import generate_pdf_report
 
 def render_dashboard(config):
     """
@@ -416,7 +416,7 @@ def render_dashboard(config):
                                  "Calculation Date": datetime.now().strftime("%Y-%m-%d %H:%M")
                              }
 
-                             pdf_bytes = create_pdf_report(
+                             pdf_bytes = generate_pdf_report(
                                  results_success, 
                                  best_model_name, 
                                  dataset_stats, 

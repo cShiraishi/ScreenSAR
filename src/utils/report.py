@@ -54,7 +54,7 @@ class PDFReport(FPDF):
         self.set_font('Arial', '', 10)
         self.cell(50, 6, str(value), 0, 1)
 
-def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="logo.png", lang="English", roc_plot_path=None, params=None):
+def generate_pdf_report(results_df, best_model_name, dataset_stats, logo_path="logo.png", lang="English", roc_plot_path=None, params=None):
     pdf = PDFReport(logo_path=logo_path, title="QSAR Modeling Report")
     pdf.alias_nb_pages()
     pdf.add_page()
@@ -214,7 +214,7 @@ def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="log
             pdf.set_font('Arial', '', 10)
             if fill: pdf.set_fill_color(245, 245, 245) # Alternating greys if we want, but let's stick to simple
             fill = False
-
+        
         # If we want alternating rows, we can flip fill boolean
         
         for i, col in enumerate(cols):
@@ -241,120 +241,22 @@ def create_pdf_report(results_df, best_model_name, dataset_stats, logo_path="log
         x_pos = (210 - 150) / 2
         pdf.image(roc_plot_path, x=x_pos, w=150)
         
-    return pdf.output(dest='S').encode('latin-1')
-    pdf = PDFReport(logo_path=logo_path, title="QSAR Modeling Report")
-    pdf.alias_nb_pages()
-    pdf.add_page()
-    
-    # Translations for headers
-    t = {
-        "English": {
-            "summary": "1. Executive Summary & Recommendation",
-            "best": "Best Model Recommendation:",
-            "rationale": "Based on the highest Matthews Correlation Coefficient (MCC), the recommended model is:",
-            "dataset": "2. Dataset Information",
-            "models": "3. Model Performance Comparison",
-            "metric": "Metric",
-            "value": "Value"
-        },
-        "Português": {
-            "summary": "1. Resumo Executivo e Recomendação",
-            "best": "Recomendação de Melhor Modelo:",
-            "rationale": "Baseado no maior Índice de Correlação de Matthews (MCC), o modelo recomendado é:",
-            "dataset": "2. Informações do Dataset",
-            "models": "3. Comparação de Performance dos Modelos",
-            "metric": "Métrica",
-            "value": "Valor"
-        },
-        "Deutsch": {
-            "summary": "1. Zusammenfassung & Empfehlung",
-            "best": "Empfohlenes Modell:",
-            "rationale": "Basierend auf dem höchsten Matthews-Korrelationskoeffizienten (MCC) ist das empfohlene Modell:",
-            "dataset": "2. Dataset-Informationen",
-            "models": "3. Modellleistungsvergleich",
-            "metric": "Metrik",
-            "value": "Wert"
-        }
-    }
-    
-    current_t = t.get(lang, t["English"])
-    
-    # 1. Executive Summary
-    pdf.chapter_title(current_t["summary"])
-    
-    # Highlight Box for Best Model
-    pdf.set_fill_color(240, 255, 240) # Light green
-    pdf.set_draw_color(0, 100, 0)
-    pdf.rect(10, pdf.get_y(), 190, 25, 'FD')
-    
-    pdf.set_xy(15, pdf.get_y() + 5)
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 5, current_t["best"], 0, 1)
-    
-    pdf.set_xy(15, pdf.get_y())
-    pdf.set_font('Arial', 'B', 14)
-    pdf.set_text_color(0, 100, 0)
-    pdf.cell(0, 10, best_model_name, 0, 1)
-    
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(10)
-    
-    pdf.chapter_body(current_t["rationale"])
-    
-    # 2. Dataset Info
-    pdf.chapter_title(current_t["dataset"])
-    for key, value in dataset_stats.items():
-        pdf.add_metric_card(key, value)
-    pdf.ln()
-    
-    # 3. Model Comparisons Table
-    pdf.chapter_title(current_t["models"])
-    
-    # Table Header
-    pdf.set_font('Arial', 'B', 10)
-    pdf.set_fill_color(200, 200, 200)
-    
-    # Dynamic columns based on df
-    # Select key metrics
-    cols = ["Modelo", "Acurácia", "MCC", "F1-Score", "AUC"]
-    # Ensure they exist
-    cols = [c for c in cols if c in results_df.columns]
-    
-    col_widths = [50] + [30] * (len(cols)-1)
-    
-    for i, col in enumerate(cols):
-        pdf.cell(col_widths[i], 7, col, 1, 0, 'C', 1)
-    pdf.ln()
-    
-    # Table Rows
-    pdf.set_font('Arial', '', 10)
-    fill = False
-    for index, row in results_df.iterrows():
-        # Highlight best model row?
-        is_best = row["Modelo"] == best_model_name
-        if is_best:
-            pdf.set_font('Arial', 'B', 10)
-            pdf.set_fill_color(255, 255, 200) # Light yellow highlight
-            fill = True
-        else:
-            pdf.set_font('Arial', '', 10)
-            if fill: pdf.set_fill_color(245, 245, 245) # Alternating greys if we want, but let's stick to simple
-            fill = False
-
-        # If we want alternating rows, we can flip fill boolean
+    # Handle output (fpdf vs fpdf2)
+    try:
+        # Use simple output() first, typical for fpdf2 to get bytearray if no dest
+        res = pdf.output()
+        if isinstance(res, (bytes, bytearray)):
+            return bytes(res)
+        elif isinstance(res, str):
+             # classic fpdf returns str if dest not specified or 'S'
+             # but standard output() prints to stdout. 
+             # Let's try explicit dest='S' if simple output failed to give bytes
+             pass 
+    except Exception:
+        pass
         
-        for i, col in enumerate(cols):
-            val = row[col]
-            if isinstance(val, (float, int)) and col != "Modelo":
-                txt = f"{val:.3f}"
-            else:
-                txt = str(val)
-            
-            pdf.cell(col_widths[i], 7, txt, 1, 0, 'C', is_best)
-        pdf.ln()
-        
-    out_val = pdf.output(dest='S')
-    # Handle fpdf (str) vs fpdf2 (bytearray) differences
-    if isinstance(out_val, str):
-        return out_val.encode('latin-1')
-    return bytes(out_val)
+    # Fallback/Safe mode
+    res = pdf.output(dest='S')
+    if isinstance(res, str):
+        return res.encode('latin-1')
+    return bytes(res)
