@@ -1,7 +1,7 @@
 pandas
 numpy
-rdkit-pypi
-fpdf
+rdkit>=2023.09.5
+fpdf2
 openpyxl
 streamlit
 scikit-learn
