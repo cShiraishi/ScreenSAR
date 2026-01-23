@@ -223,19 +223,55 @@ def render_prediction_page(config):
                             
                             st.dataframe(final_df.head())
                             
+                            st.divider()
+                            st.subheader("🔍 " + (t.get('filter_header', 'Filter by Confidence')))
+                            
+                            # 1. Probability Slider
+                            threshold = st.slider(
+                                t.get('prob_threshold', 'Probability Threshold (Active class)'), 
+                                min_value=0.5, 
+                                max_value=0.99, 
+                                value=0.7, 
+                                step=0.05,
+                                help="Filter molecules with Probability_Active >= Threshold"
+                            )
+                            
+                            # 2. Filter
+                            df_filtered = final_df[final_df['Probability_Active'] >= threshold]
+                            
+                            st.write(f"**Molecules selected:** {len(df_filtered)} / {len(final_df)}")
+                            
+                            if not df_filtered.empty:
+                                st.dataframe(df_filtered.head())
+                            else:
+                                st.warning("No molecules found with this threshold.")
+                            
                             # Download
                             # Warning for massive files
                             if len(final_df) > 100000:
                                 st.warning("Large result set. Converting to CSV might take a moment.")
                                 
+                            col_dl1, col_dl2, col_dl3 = st.columns(3)
+                            
                             csv = final_df.to_csv(index=False).encode('utf-8')
-                            st.download_button(t['download_pred'], csv, "prediction_results.csv", "text/csv")
+                            col_dl1.download_button(t['download_pred'], csv, "prediction_results_full.csv", "text/csv")
                             
                             # Download Active Only
                             df_active = final_df[final_df['Predicted_Class'] == 1]
                             if not df_active.empty:
                                 csv_active = df_active.to_csv(index=False).encode('utf-8')
-                                st.download_button("Download Active Only", csv_active, "prediction_results_active.csv", "text/csv")
+                                col_dl2.download_button("Download All Actives", csv_active, "prediction_results_actives_only.csv", "text/csv")
+
+                            # Download Filtered High Conf
+                            if not df_filtered.empty:
+                                csv_filtered = df_filtered.to_csv(index=False).encode('utf-8')
+                                col_dl3.download_button(
+                                    f"📥 Download High Confidence (>{threshold})", 
+                                    csv_filtered, 
+                                    f"prediction_high_conf_{threshold}.csv", 
+                                    "text/csv",
+                                    type="primary"
+                                )
                             
                         else:
                             st.error(t['error_no_descriptors'])
