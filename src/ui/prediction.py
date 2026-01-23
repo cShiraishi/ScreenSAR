@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 import pandas as pd
 import pickle
 import numpy as np
@@ -145,6 +146,7 @@ def render_prediction_page(config):
                         # Progress Bar
                         progress_bar = st.progress(0)
                         status_text = st.empty()
+                        start_time = time.time()
                         
                         all_results = []
                         total_processed = 0
@@ -164,7 +166,9 @@ def render_prediction_page(config):
                                 progress_val = min(total_scanned / total_steps, 1.0)
                                 progress_bar.progress(progress_val)
                             
-                            status_text.text(f"Processing chunk {chunk_idx}... (Total compounds scanned: {total_scanned})")
+                            elapsed = time.time() - start_time
+                            elapsed_str = time.strftime("%H:%M:%S", time.gmtime(elapsed))
+                            status_text.text(f"Processing chunk {chunk_idx}... (Scanned: {total_scanned} | Time: {elapsed_str})")
                             
                             # Valid rows
                             valid_rows = []
