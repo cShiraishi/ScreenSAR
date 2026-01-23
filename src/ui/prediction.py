@@ -88,7 +88,7 @@ def render_prediction_page(config):
                 if uploaded_mols.name.endswith('.csv') or uploaded_mols.name.endswith('.txt'):
                      try:
                         df_mols = pd.read_csv(uploaded_mols, sep=None, engine='python')
-                     except UnicodeDecodeError:
+                     except Exception:
                         uploaded_mols.seek(0)
                         df_mols = pd.read_csv(uploaded_mols, sep=None, engine='python', encoding='latin1')
                 else:
@@ -162,11 +162,8 @@ def render_prediction_page(config):
                                  next(data_source) 
                                  uploaded_mols.seek(0)
                                  data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE)
-                             except UnicodeDecodeError:
-                                 uploaded_mols.seek(0)
-                                 data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE, encoding='latin1')
                              except Exception:
-                                 # Fallback to latin1 just in case other errors masked it, or re-raise
+                                 # Fallback to latin1 for ANY error (encoding or parsing)
                                  uploaded_mols.seek(0)
                                  data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE, encoding='latin1')
                         else:
