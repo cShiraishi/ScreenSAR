@@ -38,8 +38,8 @@ def render_sidebar():
              return config # Return early
         
         st.header(t['settings'])
-        uploaded_file = st.file_uploader(t['upload_label'], type=['csv', 'xlsx', 'xls'])
-        config["uploaded_file"] = uploaded_file
+        uploaded_files = st.file_uploader(t['upload_label'], type=['csv', 'xlsx', 'xls'], accept_multiple_files=True)
+        config["uploaded_file"] = uploaded_files
         
         st.subheader(t['curation_params'])
         
@@ -85,7 +85,7 @@ def render_sidebar():
              config['n_bits'] = 1024 # Default/Ignored
              config['radius'] = 2   # Default/Ignored
 
-        config["run_btn"] = st.button(t['run_btn'], type="primary", disabled=not uploaded_file)
+        config["run_btn"] = st.button(t['run_btn'], type="primary", disabled=not uploaded_files)
         
     # Sidebar Footer with Visitor Counter
     with st.sidebar:
