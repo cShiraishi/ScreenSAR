@@ -86,7 +86,11 @@ def render_prediction_page(config):
         if uploaded_mols:
             try:
                 if uploaded_mols.name.endswith('.csv') or uploaded_mols.name.endswith('.txt'):
-                     df_mols = pd.read_csv(uploaded_mols, sep=None, engine='python')
+                     try:
+                        df_mols = pd.read_csv(uploaded_mols, sep=None, engine='python')
+                     except UnicodeDecodeError:
+                        uploaded_mols.seek(0)
+                        df_mols = pd.read_csv(uploaded_mols, sep=None, engine='python', encoding='latin1')
                 else:
                      df_mols = pd.read_excel(uploaded_mols)
                 
@@ -140,7 +144,31 @@ def render_prediction_page(config):
                              uploaded_mols.seek(0)
                              
                              # Read as iterator
-                             data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE)
+                             try:
+                                 data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE)
+                                 # Trigger a read to catch potential immediate encoding errors
+                                 # Actually read_csv with chunksize returns an iterator, it might not fail until iteration
+                                 # But if it fails, we catch it in the loop or we can try to peek?
+                                 # A safer way allows retrying the whole block.
+                             except:
+                                 pass # Fallthrough to retry logic below isn't easy with this structure, let's just make the assignment robust
+
+                             # Let's use a robust approach
+                             uploaded_mols.seek(0)
+                             try:
+                                 # Try UTF-8 first (default)
+                                 data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE)
+                                 # Test first chunk
+                                 next(data_source) 
+                                 uploaded_mols.seek(0)
+                                 data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE)
+                             except UnicodeDecodeError:
+                                 uploaded_mols.seek(0)
+                                 data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE, encoding='latin1')
+                             except Exception:
+                                 # Fallback to latin1 just in case other errors masked it, or re-raise
+                                 uploaded_mols.seek(0)
+                                 data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE, encoding='latin1')
                         else:
                              # Excel is already read into memory as df_mols because we can't chunk read easily
                              # So we just chunk the dataframe
