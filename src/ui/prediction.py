@@ -130,47 +130,11 @@ def render_prediction_page(config):
                             else:
                                 raise ValueError("Unsupported data source")
 
-                        # Re-initialize reader for CSV if it was already consumed or needed to be cleanly read
-                        uploaded_mols.seek(0)
-                        
-                        is_csv = uploaded_mols.name.endswith('.csv') or uploaded_mols.name.endswith('.txt')
-                        
-                        if is_csv:
-                             # Count lines to estimate total
-                             try:
-                                total_steps = sum(1 for line in uploaded_mols) - 1 # Subtract header
-                             except:
-                                total_steps = 0
-                             uploaded_mols.seek(0)
-                             
-                             # Read as iterator
-                             try:
-                                 data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE)
-                                 # Trigger a read to catch potential immediate encoding errors
-                                 # Actually read_csv with chunksize returns an iterator, it might not fail until iteration
-                                 # But if it fails, we catch it in the loop or we can try to peek?
-                                 # A safer way allows retrying the whole block.
-                             except:
-                                 pass # Fallthrough to retry logic below isn't easy with this structure, let's just make the assignment robust
-
-                             # Let's use a robust approach
-                             uploaded_mols.seek(0)
-                             try:
-                                 # Try UTF-8 first (default)
-                                 data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE)
-                                 # Test first chunk
-                                 next(data_source) 
-                                 uploaded_mols.seek(0)
-                                 data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE)
-                             except Exception:
-                                 # Fallback to latin1 for ANY error (encoding or parsing)
-                                 uploaded_mols.seek(0)
-                                 data_source = pd.read_csv(uploaded_mols, sep=None, engine='python', chunksize=CHUNK_SIZE, encoding='latin1')
-                        else:
-                             # Excel is already read into memory as df_mols because we can't chunk read easily
-                             # So we just chunk the dataframe
-                             data_source = df_mols
-                             total_steps = len(df_mols)
+                        # Use the already loaded dataframe (df_mols) as source
+                        # This avoids re-reading the file stream which can cause I/O closed errors,
+                        # and uses the encoding logic that already succeeded during preview.
+                        data_source = df_mols
+                        total_steps = len(df_mols)
                         
                         # Progress Bar
                         progress_bar = st.progress(0)
