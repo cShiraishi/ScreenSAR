@@ -34,6 +34,12 @@ def patched_logistic_regression():
 def render_prediction_page(config):
     t = config['t']
     
+    # Initialize Session State
+    if 'pred_result_df' not in st.session_state:
+        st.session_state.pred_result_df = None
+    if 'pred_stats' not in st.session_state:
+        st.session_state.pred_stats = {}
+    
     # Logo Emphasis
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
@@ -121,18 +127,16 @@ def render_prediction_page(config):
                                 raise ValueError("Unsupported data source")
 
                         # Re-initialize reader for CSV if it was already consumed or needed to be cleanly read
-                        # But here 'df_mols' might be a DataFrame (Excel) or TextFileReader (CSV if we change read_csv above)
-                        
-                        # Let's adjust how we read the file initially to support this "generator" flow better.
-                        # Since we already read 'df_mols' above, let's refine that logic first.
-                        # Ideally, we should re-open the file if it's a stream, but streamlit file_uploader can be seeked.
                         uploaded_mols.seek(0)
                         
                         is_csv = uploaded_mols.name.endswith('.csv') or uploaded_mols.name.endswith('.txt')
                         
                         if is_csv:
                              # Count lines to estimate total
-                             total_steps = sum(1 for line in uploaded_mols) - 1 # Subtract header
+                             try:
+                                total_steps = sum(1 for line in uploaded_mols) - 1 # Subtract header
+                             except:
+                                total_steps = 0
                              uploaded_mols.seek(0)
                              
                              # Read as iterator
@@ -221,67 +225,75 @@ def render_prediction_page(config):
                         
                         if all_results:
                             final_df = pd.concat(all_results, ignore_index=True)
-                            
-                            st.subheader(t['pred_results_title'])
-                            st.write(t['pred_summary'].format(total_active, total_processed))
-                            
-                            st.dataframe(final_df.head())
-                            
-                            st.divider()
-                            st.subheader("🔍 " + (t.get('filter_header', 'Filter by Confidence')))
-                            
-                            # 1. Probability Slider
-                            threshold = st.slider(
-                                t.get('prob_threshold', 'Probability Threshold (Active class)'), 
-                                min_value=0.5, 
-                                max_value=0.99, 
-                                value=0.7, 
-                                step=0.05,
-                                help="Filter molecules with Probability_Active >= Threshold"
-                            )
-                            
-                            # 2. Filter
-                            df_filtered = final_df[final_df['Probability_Active'] >= threshold]
-                            
-                            st.write(f"**Molecules selected:** {len(df_filtered)} / {len(final_df)}")
-                            
-                            if not df_filtered.empty:
-                                st.dataframe(df_filtered.head())
-                            else:
-                                st.warning("No molecules found with this threshold.")
-                            
-                            # Download
-                            # Warning for massive files
-                            if len(final_df) > 100000:
-                                st.warning("Large result set. Converting to CSV might take a moment.")
-                                
-                            col_dl1, col_dl2, col_dl3 = st.columns(3)
-                            
-                            csv = final_df.to_csv(index=False).encode('utf-8')
-                            col_dl1.download_button(t['download_pred'], csv, "prediction_results_full.csv", "text/csv")
-                            
-                            # Download Active Only
-                            df_active = final_df[final_df['Predicted_Class'] == 1]
-                            if not df_active.empty:
-                                csv_active = df_active.to_csv(index=False).encode('utf-8')
-                                col_dl2.download_button("Download All Actives", csv_active, "prediction_results_actives_only.csv", "text/csv")
-
-                            # Download Filtered High Conf
-                            if not df_filtered.empty:
-                                csv_filtered = df_filtered.to_csv(index=False).encode('utf-8')
-                                col_dl3.download_button(
-                                    f"📥 Download High Confidence (>{threshold})", 
-                                    csv_filtered, 
-                                    f"prediction_high_conf_{threshold}.csv", 
-                                    "text/csv",
-                                    type="primary"
-                                )
-                            
+                            # Store in session state
+                            st.session_state.pred_result_df = final_df
+                            st.session_state.pred_stats = {'total_active': total_active, 'total_processed': total_processed}
                         else:
                             st.error(t['error_no_descriptors'])
-                        
+                            st.session_state.pred_result_df = None
                 else:
                     st.error(t['error_smiles_col'])
             
             except Exception as e:
                 st.error(f"Error reading file: {e}")
+                
+        # RENDER RESULTS FROM SESSION STATE (Outside the button click)
+        if st.session_state.pred_result_df is not None:
+            final_df = st.session_state.pred_result_df
+            stats = st.session_state.pred_stats
+            
+            st.divider()
+            st.subheader(t['pred_results_title'])
+            st.write(t['pred_summary'].format(stats.get('total_active', 0), stats.get('total_processed', 0)))
+            
+            st.dataframe(final_df.head())
+            
+            st.divider()
+            st.subheader("🔍 " + (t.get('filter_header', 'Filter by Confidence')))
+            
+            # 1. Probability Slider
+            threshold = st.slider(
+                t.get('prob_threshold', 'Probability Threshold (Active class)'), 
+                min_value=0.5, 
+                max_value=0.99, 
+                value=0.7, 
+                step=0.05,
+                help="Filter molecules with Probability_Active >= Threshold"
+            )
+            
+            # 2. Filter
+            df_filtered = final_df[final_df['Probability_Active'] >= threshold]
+            
+            st.write(f"**Molecules selected:** {len(df_filtered)} / {len(final_df)}")
+            
+            if not df_filtered.empty:
+                st.dataframe(df_filtered.head())
+            else:
+                st.warning("No molecules found with this threshold.")
+            
+            # Download
+            # Warning for massive files
+            if len(final_df) > 100000:
+                st.warning("Large result set. Converting to CSV might take a moment.")
+                
+            col_dl1, col_dl2, col_dl3 = st.columns(3)
+            
+            csv = final_df.to_csv(index=False).encode('utf-8')
+            col_dl1.download_button(t['download_pred'], csv, "prediction_results_full.csv", "text/csv")
+            
+            # Download Active Only
+            df_active = final_df[final_df['Predicted_Class'] == 1]
+            if not df_active.empty:
+                csv_active = df_active.to_csv(index=False).encode('utf-8')
+                col_dl2.download_button("Download All Actives", csv_active, "prediction_results_actives_only.csv", "text/csv")
+
+            # Download Filtered High Conf
+            if not df_filtered.empty:
+                csv_filtered = df_filtered.to_csv(index=False).encode('utf-8')
+                col_dl3.download_button(
+                    f"📥 Download High Confidence (>{threshold})", 
+                    csv_filtered, 
+                    f"prediction_high_conf_{threshold}.csv", 
+                    "text/csv",
+                    type="primary"
+                )
