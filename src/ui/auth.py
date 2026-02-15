@@ -237,8 +237,14 @@ def handle_google_callback():
         st.rerun()
             
     except Exception as e:
+        import traceback
         st.error(f"Falha no Login Google: {e}")
-        st.query_params.clear()
+        st.code(traceback.format_exc())
+        # Do not clear params immediately so user can see the error, 
+        # but provide a way to retry/clear
+        if st.button("Tentar Novamente"):
+            st.query_params.clear()
+            st.rerun()
 
 def authenticate_via_secrets(email, password):
     """
