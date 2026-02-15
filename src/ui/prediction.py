@@ -64,9 +64,14 @@ def render_prediction_page(config):
             if isinstance(model_package, dict) and "metadata" in model_package:
                 model = model_package['model']
                 metadata = model_package['metadata']
+                ad_model = model_package.get('ad_model') # New field
+                
                 st.success(t['model_loaded'].format(metadata.get('name', 'Unknown')))
                 st.info(t['model_config'].format(metadata.get('descriptor_type', 'Morgan'), metadata.get('n_bits'), metadata.get('radius')))
-                model_data = {"model": model, "meta": metadata}
+                if ad_model:
+                     st.info(f"🛡️ Applicability Domain Model Loaded (Threshold: {ad_model.threshold_AD:.3f})")
+                     
+                model_data = {"model": model, "meta": metadata, "ad_model": ad_model}
             else:
                 # Legacy fallback
                 st.warning(t['legacy_warn'])
@@ -77,10 +82,17 @@ def render_prediction_page(config):
         except Exception as e:
             st.error(f"Error loading model: {e}")
             
+            
     # 2. Upload Molecules
-    if model_data:
-        st.divider()
-        st.subheader(t['pred_step2'])
+    st.divider()
+    st.subheader(t['pred_step2'])
+    tab_upload, tab_paste = st.tabs(["📂 " + t.get('tab_upload', "Upload File"), "📝 " + t.get('tab_paste', "Paste SMILES")])
+    
+    df_mols = None
+    smiles_col = "SMILES" # Default name for pasted data
+    
+    # SOURCE 1: FILE UPLOAD
+    with tab_upload:
         uploaded_mols = st.file_uploader(t['upload_mols_label'], type=['csv', 'txt', 'xlsx'])
         
         if uploaded_mols:
@@ -94,21 +106,42 @@ def render_prediction_page(config):
                 else:
                      df_mols = pd.read_excel(uploaded_mols)
                 
-                # Try to find SMILES column
+                # Try to find SMILES column for FILE
                 cols = [c.upper() for c in df_mols.columns]
-                smiles_col = None
+                found_col = None
                 for c in df_mols.columns:
                     if "SMILES" in c.upper() or "SMILE" in c.upper() or "STRUCTURE" in c.upper():
-                        smiles_col = c
+                        found_col = c
                         break
                 
-                if not smiles_col and len(df_mols.columns) == 1:
-                    smiles_col = df_mols.columns[0] # Assume single column list
+                if not found_col and len(df_mols.columns) == 1:
+                    found_col = df_mols.columns[0] # Assume single column list
                 
-                if smiles_col:
-                    st.write(t['analyzed_mols'].format(len(df_mols) if not isinstance(df_mols, pd.io.parsers.TextFileReader) else "Large Dataset (Chunked)", smiles_col))
-                    
-                    if st.button(t['run_pred_btn']):
+                smiles_col = found_col
+                
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
+
+    # SOURCE 2: PASTE SMILES
+    with tab_paste:
+        st.write(t.get('paste_instruction', "Paste SMILES codes, one per line."))
+        pasted_text = st.text_area("SMILES Input", height=200, placeholder="C1=CC=CC=C1\nCCCCC\n...")
+        
+        if pasted_text:
+            lines = [l.strip() for l in pasted_text.split('\n') if l.strip()]
+            if lines:
+                df_mols = pd.DataFrame({'SMILES': lines})
+                smiles_col = 'SMILES'
+    
+    # COMMON PROCESSING
+    if df_mols is not None:
+        if smiles_col:
+                st.write(t['analyzed_mols'].format(len(df_mols) if not isinstance(df_mols, pd.io.parsers.TextFileReader) else "Large Dataset (Chunked)", smiles_col))
+                
+                if st.button(t['run_pred_btn']):
+                    if not model_data:
+                        st.error("Please upload a model first (Step 1).")
+                    else:
                         # Prepare data
                         meta = model_data['meta']
                         
@@ -192,14 +225,33 @@ def render_prediction_page(config):
                             
                             if fps:
                                 X_pred = np.array(fps)
+                                X_pred = np.array(fps)
                                 y_pred = model_data['model'].predict(X_pred)
                                 y_proba = model_data['model'].predict_proba(X_pred)[:, 1] if hasattr(model_data['model'], 'predict_proba') else [0]*len(y_pred)
+                                
+                                # AD Check
+                                ad_inside = [None] * len(y_pred)
+                                ad_dist = [None] * len(y_pred)
+                                
+                                if model_data.get('ad_model'):
+                                    try:
+                                        is_inside, distances = model_data['ad_model'].predict(X_pred)
+                                        ad_inside = ["Inside" if x else "Outside" for x in is_inside]
+                                        ad_dist = distances
+                                    except Exception as e:
+                                        # Handle cases where AD model might fail (e.g. dimension mismatch)
+                                        # st.warning(f"AD Check failed: {e}")
+                                        pass
                                 
                                 # Create Chunk Result
                                 df_res_chunk = pd.DataFrame(valid_rows)
                                 df_res_chunk['Predicted_Class'] = y_pred
                                 df_res_chunk['Probability_Active'] = y_proba
                                 df_res_chunk['Prediction_Label'] = ["Active" if x==1 else "Inactive" for x in y_pred]
+                                
+                                if model_data.get('ad_model'):
+                                    df_res_chunk['AD_Status'] = ad_inside
+                                    df_res_chunk['AD_Distance'] = ad_dist
                                 
                                 all_results.append(df_res_chunk)
                                 total_processed += len(df_res_chunk)
@@ -220,69 +272,152 @@ def render_prediction_page(config):
                         else:
                             st.error(t['error_no_descriptors'])
                             st.session_state.pred_result_df = None
-                else:
-                    st.error(t['error_smiles_col'])
-            
-            except Exception as e:
-                st.error(f"Error reading file: {e}")
-                
-        # RENDER RESULTS FROM SESSION STATE (Outside the button click)
-        if st.session_state.pred_result_df is not None:
-            final_df = st.session_state.pred_result_df
-            stats = st.session_state.pred_stats
-            
-            st.divider()
-            st.subheader(t['pred_results_title'])
-            st.write(t['pred_summary'].format(stats.get('total_active', 0), stats.get('total_processed', 0)))
-            
-            st.dataframe(final_df.head())
-            
-            st.divider()
-            st.subheader("🔍 " + (t.get('filter_header', 'Filter by Confidence')))
-            
-            # 1. Probability Slider
-            threshold = st.slider(
-                t.get('prob_threshold', 'Probability Threshold (Active class)'), 
-                min_value=0.5, 
-                max_value=0.99, 
-                value=0.7, 
-                step=0.05,
-                help="Filter molecules with Probability_Active >= Threshold"
-            )
-            
-            # 2. Filter
-            df_filtered = final_df[final_df['Probability_Active'] >= threshold]
-            
-            st.write(f"**Molecules selected:** {len(df_filtered)} / {len(final_df)}")
-            
-            if not df_filtered.empty:
-                st.dataframe(df_filtered.head())
-            else:
-                st.warning("No molecules found with this threshold.")
-            
-            # Download
-            # Warning for massive files
-            if len(final_df) > 100000:
-                st.warning("Large result set. Converting to CSV might take a moment.")
-                
-            col_dl1, col_dl2, col_dl3 = st.columns(3)
-            
-            csv = final_df.to_csv(index=False).encode('utf-8')
-            col_dl1.download_button(t['download_pred'], csv, "prediction_results_full.csv", "text/csv")
-            
-            # Download Active Only
-            df_active = final_df[final_df['Predicted_Class'] == 1]
-            if not df_active.empty:
-                csv_active = df_active.to_csv(index=False).encode('utf-8')
-                col_dl2.download_button("Download All Actives", csv_active, "prediction_results_actives_only.csv", "text/csv")
 
-            # Download Filtered High Conf
-            if not df_filtered.empty:
-                csv_filtered = df_filtered.to_csv(index=False).encode('utf-8')
-                col_dl3.download_button(
-                    f"📥 Download High Confidence (>{threshold})", 
-                    csv_filtered, 
-                    f"prediction_high_conf_{threshold}.csv", 
-                    "text/csv",
-                    type="primary"
+        else:
+            st.error(t['error_smiles_col'])
+            
+    # RENDER RESULTS FROM SESSION STATE (Outside the button click)
+    if st.session_state.pred_result_df is not None:
+        final_df = st.session_state.pred_result_df
+        stats = st.session_state.pred_stats
+        
+        st.divider()
+        st.subheader(t['pred_results_title'])
+        st.write(t['pred_summary'].format(stats.get('total_active', 0), stats.get('total_processed', 0)))
+        
+        # New AD Metrics
+        if 'AD_Status' in final_df.columns:
+            total_inside = final_df['AD_Status'].value_counts().get('Inside', 0)
+            total_outside = final_df['AD_Status'].value_counts().get('Outside', 0)
+            
+            c_ad1, c_ad2, c_ad3 = st.columns(3)
+            c_ad1.metric("🛡️ Inside Domain", f"{total_inside}", help="Reliable predictions")
+            c_ad2.metric("⚠️ Outside Domain", f"{total_outside}", help="Unreliable predictions")
+            c_ad3.metric("Coverage", f"{total_inside/len(final_df):.1%}" if len(final_df)>0 else "0%")
+            
+            if total_outside > 0:
+                st.caption(f"Note: {total_outside} compounds are structurally distinct from the training set. Consider filtering them out.")
+        
+        with st.expander("ℹ️ Help: Understanding Confidence & Applicability Domain", expanded=True):
+            st.markdown("""
+            *   **Confidence (Probability_Active)**: The model's estimated probability that the compound is **Active**. 
+                *   Values closer to **1.0** indicate high confidence in Activity.
+                *   Values closer to **0.0** indicate high confidence in Inactivity.
+            *   **AD Status**: Indicates if the compound is within the **Applicability Domain**.
+                *   ✅ **Inside**: The compound is chemically similar to the training set. The prediction is reliable.
+                *   ⚠️ **Outside**: The compound is structurally distinct from the training data. The prediction is less reliable.
+            *   **AD Distance**: The computed distance to the nearest training neighbors. Lower values mean higher similarity.
+            """)
+        
+        # COLUMN CONFIGURATION & ORDERING
+        display_cols = [c for c in final_df.columns if c not in ['SMILES', 'Molecule ChEMBL ID']]
+        # Prioritize important cols
+        priority = ['SMILES', 'Prediction_Label', 'Probability_Active', 'AD_Status', 'AD_Distance']
+        
+        # Reorder: Priority first, then others
+        ordered_cols = [c for c in priority if c in final_df.columns]
+        remaining = [c for c in final_df.columns if c not in ordered_cols]
+        final_view = final_df[ordered_cols + remaining]
+        
+        st.dataframe(
+            final_view,
+            column_config={
+                "AD_Status": st.column_config.TextColumn(
+                    "AD Status",
+                    help="Applicability Domain Status",
+                    validate="^(Inside|Outside)$"
+                ),
+                "Probability_Active": st.column_config.ProgressColumn(
+                    "Confidence",
+                    format="%.2f",
+                    min_value=0,
+                    max_value=1,
+                    help="Probability of the compound being Active (0.0 to 1.0). Higher values indicate greater certainty by the model."
+                ),
+                "AD_Distance": st.column_config.NumberColumn(
+                    "AD Distance",
+                    format="%.3f"
                 )
+            },
+            use_container_width=True
+        )
+        
+        st.divider()
+        st.subheader("🔍 " + (t.get('filter_header', 'Filter by Confidence')))
+        
+        # 1. Probability Slider
+        threshold = st.slider(
+            t.get('prob_threshold', 'Probability Threshold (Active class)'), 
+            min_value=0.5, 
+            max_value=0.99, 
+            value=0.7, 
+            step=0.05,
+            help="Filter molecules with Probability_Active >= Threshold"
+        )
+        
+        # 1.1 AD Filter
+        filter_ad = False
+        if 'AD_Status' in final_df.columns:
+            filter_ad = st.checkbox("🛡️ Only show molecules INSIDE Applicability Domain", value=False)
+        
+        # 2. Filter
+        df_filtered = final_df[final_df['Probability_Active'] >= threshold]
+        
+        if filter_ad:
+            df_filtered = df_filtered[df_filtered['AD_Status'] == "Inside"]
+        
+        st.write(f"**Molecules selected:** {len(df_filtered)} / {len(final_df)}")
+        
+        if not df_filtered.empty:
+            # Reorder for filtered view too
+            ordered_cols = [c for c in priority if c in df_filtered.columns]
+            remaining = [c for c in df_filtered.columns if c not in ordered_cols]
+            filtered_view = df_filtered[ordered_cols + remaining]
+            
+            st.dataframe(
+                filtered_view.head(50), 
+                column_config={
+                    "AD_Status": st.column_config.TextColumn(
+                        "AD Status",
+                        help="Applicability Domain Status",
+                        validate="^(Inside|Outside)$"
+                    ),
+                    "Probability_Active": st.column_config.ProgressColumn(
+                        "Confidence",
+                        format="%.2f",
+                        min_value=0,
+                        max_value=1,
+                        help="Probability of the compound being Active (0.0 to 1.0). Higher values indicate greater certainty by the model."
+                    )
+                },
+                use_container_width=True
+            )
+        else:
+            st.warning("No molecules found with this threshold.")
+        
+        # Download
+        # Warning for massive files
+        if len(final_df) > 100000:
+            st.warning("Large result set. Converting to CSV might take a moment.")
+            
+        col_dl1, col_dl2, col_dl3 = st.columns(3)
+        
+        csv = final_df.to_csv(index=False).encode('utf-8')
+        col_dl1.download_button(t['download_pred'], csv, "prediction_results_full.csv", "text/csv")
+        
+        # Download Active Only
+        df_active = final_df[final_df['Predicted_Class'] == 1]
+        if not df_active.empty:
+            csv_active = df_active.to_csv(index=False).encode('utf-8')
+            col_dl2.download_button("Download All Actives", csv_active, "prediction_results_actives_only.csv", "text/csv")
+
+        # Download Filtered High Conf
+        if not df_filtered.empty:
+            csv_filtered = df_filtered.to_csv(index=False).encode('utf-8')
+            col_dl3.download_button(
+                f"📥 Download High Confidence (>{threshold})", 
+                csv_filtered, 
+                f"prediction_high_conf_{threshold}.csv", 
+                "text/csv",
+                type="primary"
+            )

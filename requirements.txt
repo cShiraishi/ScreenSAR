@@ -5,3 +5,8 @@ scikit-learn
 fpdf2
 openpyxl
 matplotlib
+google-auth-oauthlib
+google-auth-httplib2
+bcrypt
+pymongo
+google-api-python-client

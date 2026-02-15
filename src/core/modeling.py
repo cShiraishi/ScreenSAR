@@ -8,6 +8,7 @@ from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, matthews_corrcoef, confusion_matrix, roc_auc_score, roc_curve, f1_score
+from src.core.applicability_domain import ApplicabilityDomain
 
 class ModeladorQSAR:
     def __init__(self, df_input):
@@ -54,8 +55,38 @@ class ModeladorQSAR:
             - results (DataFrame): Métricas de performance.
             - trained_models (dict): Instâncias dos modelos treinados.
             - roc_data (dict): Dados para plotar curvas ROC (fpr, tpr, auc).
+            - ad_info (dict): Informações sobre o Domínio de Aplicabilidade (modelo, outliers).
+            - ad_info (dict): Informações sobre o Domínio de Aplicabilidade (modelo, outliers).
         """
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=y)
+        # Create indices array to track original positions
+        indices = np.arange(len(X))
+        X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(X, y, indices, test_size=test_size, random_state=random_state, stratify=y)
+        
+        # --- Aplicability Domain (AD) ---
+        ad_model = ApplicabilityDomain(k_neighbors=5, z_threshold=3.0)
+        outliers_relative_indices = [] # Indices relative to X (original input to this func)
+        
+        try:
+            ad_model.fit(X_train)
+            outliers_train_local_idx = ad_model.detect_outliers() # Indices relative to X_train
+            
+            # Map back to indices relative to X
+            if len(outliers_train_local_idx) > 0:
+                outliers_relative_indices = idx_train[outliers_train_local_idx]
+                
+        except Exception as e:
+            print(f"Erro ao treinar AD: {e}")
+            ad_model = None
+            outliers_relative_indices = []
+
+        ad_info = {
+            "model": ad_model,
+            "outliers_train_idx": outliers_relative_indices, # These are indices in X
+            "idx_train": idx_train, # GLOBAL MAPPING: Indices in X corresponding to rows in X_train
+            "X_train": X_train,
+            "threshold": ad_model.threshold_AD if ad_model else 0
+        }
+        # --------------------------------
         
         results_list = []
         trained_models = {}
@@ -124,7 +155,7 @@ class ModeladorQSAR:
                     })
                     
         results_df = pd.DataFrame(results_list)
-        return results_df, trained_models, roc_data
+        return results_df, trained_models, roc_data, ad_info
 
     def calcular_modi(self, X, y):
         """

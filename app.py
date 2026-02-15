@@ -77,8 +77,22 @@ def read_single_file(uploaded_file):
 
 st.set_page_config(page_title="Curadoria QSAR", layout="wide")
 
-# 1. Render Sidebar & Get Config
+# 1. Check Authentication
+from src.ui.auth import check_authentication, login, logout
+
+if not check_authentication():
+    login()
+    st.stop()
+
+# 2. Render Sidebar & Get Config
 config = render_sidebar()
+
+# Add Logout Button to Sidebar
+with st.sidebar:
+    st.divider()
+    if st.button("Logout"):
+        logout()
+
 t = config['t']
 
 # Routing Logic
