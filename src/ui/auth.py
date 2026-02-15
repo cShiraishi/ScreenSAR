@@ -120,7 +120,7 @@ def render_google_login_button():
                 "client_secret": st.secrets["google"]["client_secret"],
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": ["http://localhost:8501"],
+                "redirect_uris": [st.secrets["google"].get("redirect_uri", "http://localhost:8501")],
             }
         }
 
@@ -134,7 +134,7 @@ def render_google_login_button():
         flow = google_auth_oauthlib.flow.Flow.from_client_config(
             client_config,
             scopes=scopes,
-            redirect_uri="http://localhost:8501"
+            redirect_uri=st.secrets["google"].get("redirect_uri", "http://localhost:8501")
         )
         
         authorization_url, state = flow.authorization_url(
@@ -206,7 +206,7 @@ def handle_google_callback():
                 "client_secret": st.secrets["google"]["client_secret"],
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": ["http://localhost:8501"],
+                "redirect_uris": [st.secrets["google"].get("redirect_uri", "http://localhost:8501")],
             }
         }
         
@@ -217,7 +217,7 @@ def handle_google_callback():
                 "https://www.googleapis.com/auth/userinfo.profile",
                 "openid"
             ],
-            redirect_uri="http://localhost:8501"
+            redirect_uri=st.secrets["google"].get("redirect_uri", "http://localhost:8501")
         )
         
         code = st.query_params['code']
