@@ -113,6 +113,20 @@ def login():
                             else:
                                 st.error("This email is already registered.")
 
+            st.markdown(
+                """
+                <br>
+                <div style="text-align: center; font-size: 0.9em; color: #555;">
+                    <h4 style="color: #333; margin-bottom: 10px;">Team</h4>
+                    <p style="margin: 2px;">Carlos S. H. Shiraishi (Developer)</p>
+                    <p style="margin: 2px;">Eugene Muratov (Supervisor)</p>
+                    <p style="margin: 2px;">Marcus T. Scotti (Supervisor)</p>
+                    <p style="margin: 2px;">Rui M. V. Abreu (Supervisor)</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
             # Visitor Stats (Flag Counter)
             st.markdown(
                 """
