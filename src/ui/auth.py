@@ -42,6 +42,20 @@ def login():
             st.markdown(
                 """
                 <div style="text-align: center; margin-bottom: 20px; margin-top: 10px;">
+                """, 
+                unsafe_allow_html=True
+            )
+            
+            try:
+                # Use columns to center the image effectively
+                c1, c2, c3 = st.columns([1,2,1])
+                with c2:
+                     st.image("assets/logo.png", use_container_width=True)
+            except:
+                pass # Fail silently if logo not found
+
+            st.markdown(
+                """
                     <h1 style="font-size: 2rem;">Curadoria QSAR</h1>
                     <p style="color: #666;">Acesso Seguro</p>
                 </div>
