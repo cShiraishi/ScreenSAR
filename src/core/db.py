@@ -7,12 +7,10 @@ from sqlalchemy.exc import SQLAlchemyError
 def get_connection():
     """
     Returns the SQL connection object using Streamlit's st.connection.
-    Expects secrets to contain a 'postgres' section with a 'uri' key.
     """
     if "postgres" in st.secrets and "uri" in st.secrets["postgres"]:
         return st.connection("qsar_db", type="sql", url=st.secrets["postgres"]["uri"])
     else:
-        # Fallback
         try:
            return st.connection("qsar_db", type="sql") 
         except:
@@ -20,29 +18,50 @@ def get_connection():
 
 def init_db():
     """
-    Initializes the database table using SQLAlchemy metadata.
-    This works for both SQLite and PostgreSQL.
+    Initializes the database table using Raw SQL for robustness.
     """
     try:
         conn = get_connection()
         if conn is None:
+            st.error("Falha na conexão com o Banco de Dados.")
             return
 
-        # Define table structure using SQLAlchemy Core (Dialect agnostic)
-        metadata = MetaData()
-        users = Table(
-            'users', metadata,
-            Column('id', Integer, primary_key=True),
-            Column('email', String, unique=True, nullable=False),
-            Column('password_hash', String, nullable=False),
-            Column('created_at', Float)
-        )
-        
-        # Create table if not exists
-        metadata.create_all(conn.engine)
+        # Use raw SQL to ensure table creation works across versions/dialects
+        # properly with the SQLAlchemy engine
+        with conn.engine.connect() as c:
+            # PostgreSQL / SQLite compatible CREATE TABLE
+            # check dialect to adapt syntax if strictly needed, but basic SQL is fine
+            
+            # Using SQLAlchemy text() for safety
+            sql = """
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at DOUBLE PRECISION
+                );
+            """
+            
+            # If SQLite, SERIAL doesn't work the same, but SQLAlchemy handles it? 
+            # No, raw SQL implies dialect specific.
+            # Let's check dialect.
+            
+            if conn.engine.dialect.name == 'sqlite':
+                sql = """
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        email TEXT UNIQUE NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        created_at REAL
+                    );
+                """
+
+            c.execute(text(sql))
+            c.commit()
             
     except Exception as e:
-        print(f"DB Init Error: {e}")
+        # Show this error explicitly so we know if init failed
+        st.error(f"Erro Crítico ao Inicializar Banco de Dados (init_db): {e}")
 
 def create_user(email, password):
     """
