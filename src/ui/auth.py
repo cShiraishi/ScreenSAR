@@ -111,8 +111,14 @@ def render_google_login_button():
     try:
         # Check for secrets
         if 'google' not in st.secrets:
-            # Silent fail for UI if not configured, or show warning if development
+            st.warning("Google Secrets not found!")
             return
+
+        # Debug info for troubleshooting
+        with st.expander("Debug: Configuração Google", expanded=False):
+            st.write(f"Client ID: {st.secrets['google']['client_id'][:15]}...")
+            st.write(f"Redirect URI configurada no App: {st.secrets['google'].get('redirect_uri')}")
+            st.info("Compare a 'Redirect URI' acima com a que está no Google Cloud Console > Credenciais > Cliente Web 2.")
 
         client_config = {
             "web": {
