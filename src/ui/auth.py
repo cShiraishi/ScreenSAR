@@ -113,19 +113,17 @@ def login():
                             else:
                                 st.error("This email is already registered.")
 
-            # Divider for Google Login (Temporarily disabled)
-            # st.markdown(
-            #     """
-            #     <div style="display: flex; align-items: center; justify-content: center; margin: 25px 0 15px 0;">
-            #         <hr style="flex-grow: 1; border: 0; border-top: 1px solid #eee;">
-            #         <span style="padding: 0 10px; color: #888; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px;">ou continue com</span>
-            #         <hr style="flex-grow: 1; border: 0; border-top: 1px solid #eee;">
-            #     </div>
-            #     """,
-            #     unsafe_allow_html=True
-            # )
-            
-            # render_google_login_button()
+            # Visitor Stats (Flag Counter)
+            st.markdown(
+                """
+                <br><br>
+                <div style="text-align: center; font-size: 0.8em; color: #888;">
+                    <p>Global Usage</p>
+                    <a href="https://info.flagcounter.com/PZ8v"><img src="https://s11.flagcounter.com/count2/PZ8v/bg_FFFFFF/txt_000000/border_CCCCCC/columns_2/maxflags_10/viewers_0/labels_0/pageviews_1/flags_0/percent_0/" alt="Flag Counter" border="0"></a>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
 def render_google_login_button():
     try:
