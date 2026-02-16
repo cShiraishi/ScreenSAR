@@ -228,6 +228,22 @@ def handle_google_callback():
         user_info_service = build('oauth2', 'v2', credentials=credentials)
         user_info = user_info_service.userinfo().get().execute()
         
+        # Verify if user exists in DB, if not create him
+        email = user_info.get('email')
+        if email:
+             # Try to find user (we use verify_user logic but without password check or just check existence)
+             # Ideally we should have a get_user(email) function, but create_user handles "if exists return false"
+             # So we can just try to create. 
+             # For Google users, we set a dummy high-entropy password or mark as OAuth user.
+             # Here we simply ensure they exist.
+             
+             # Random password for OAuth users (they won't use it to login anyway)
+             import secrets
+             random_password = secrets.token_urlsafe(16)
+             
+             # Attempt creation (will fail gracefully if exists, which is fine)
+             create_user(email, random_password)
+        
         # Success
         st.session_state.authenticated = True
         st.session_state.user_info = user_info
