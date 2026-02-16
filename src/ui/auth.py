@@ -61,6 +61,9 @@ def login():
                 """
                     <h1 style="font-size: 2.2rem; margin-bottom: 5px;">QSAR Curatorship</h1>
                     <p style="color: #666; font-size: 1.1rem; margin-top: 0;">Secure Access</p>
+                    <div style="max-width: 600px; margin: 0 auto; padding: 20px 0; color: #555; line-height: 1.6;">
+                        <p>ScreenSAR is a comprehensive, automated platform designed to streamline chemical data curation, machine learning model development, and virtual screening. It offers a modular architecture comprising standardized data cleaning, feature engineering, outlier analysis, and multi-model training.</p>
+                    </div>
                 </div>
                 """, 
                 unsafe_allow_html=True
