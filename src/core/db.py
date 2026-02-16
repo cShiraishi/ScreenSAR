@@ -1,47 +1,45 @@
 import streamlit as st
 import bcrypt
 import time
-from sqlalchemy import text
+from sqlalchemy import text, MetaData, Table, Column, Integer, String, Float
 from sqlalchemy.exc import SQLAlchemyError
 
 def get_connection():
     """
     Returns the SQL connection object using Streamlit's st.connection.
-    Expects secrets to contain a 'postgres' section with a 'uri' key,
-    OR standard Streamlit SQL secrets.
+    Expects secrets to contain a 'postgres' section with a 'uri' key.
     """
     if "postgres" in st.secrets and "uri" in st.secrets["postgres"]:
-        # Custom section
         return st.connection("qsar_db", type="sql", url=st.secrets["postgres"]["uri"])
     else:
-        # Fallback to default 'connections.postgresql' if defined, or error
+        # Fallback
         try:
-           return st.connection("postgresql", type="sql") 
+           return st.connection("qsar_db", type="sql") 
         except:
            return None
 
 def init_db():
     """
-    Initializes the database table if it doesn't exist.
+    Initializes the database table using SQLAlchemy metadata.
+    This works for both SQLite and PostgreSQL.
     """
     try:
         conn = get_connection()
         if conn is None:
             return
 
-        # Create users table
-        # We use 'text' for password_hash to store the decoded bcrypt hash
-        create_table_sql = """
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                created_at DOUBLE PRECISION
-            );
-        """
-        with conn.session as s:
-            s.execute(text(create_table_sql))
-            s.commit()
+        # Define table structure using SQLAlchemy Core (Dialect agnostic)
+        metadata = MetaData()
+        users = Table(
+            'users', metadata,
+            Column('id', Integer, primary_key=True),
+            Column('email', String, unique=True, nullable=False),
+            Column('password_hash', String, nullable=False),
+            Column('created_at', Float)
+        )
+        
+        # Create table if not exists
+        metadata.create_all(conn.engine)
             
     except Exception as e:
         print(f"DB Init Error: {e}")
