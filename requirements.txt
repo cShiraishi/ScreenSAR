@@ -10,3 +10,4 @@ google-auth-httplib2
 bcrypt
 psycopg2-binary
 sqlalchemy
+google-api-python-client
