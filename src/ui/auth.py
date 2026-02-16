@@ -50,8 +50,8 @@ def login():
             )
             
             try:
-                # Use balanced columns [1,1,1] to center image perfectly
-                c1, c2, c3 = st.columns([1,1,1])
+                # Use [0.5, 2, 0.5] or similar to give more space to the logo in the middle
+                c1, c2, c3 = st.columns([0.5, 2, 0.5])
                 with c2:
                      st.image("assets/logo.png", use_container_width=True)
             except:
@@ -59,8 +59,8 @@ def login():
 
             st.markdown(
                 """
-                    <h1 style="font-size: 2rem;">QSAR Curatorship</h1>
-                    <p style="color: #666;">Secure Access</p>
+                    <h1 style="font-size: 2.2rem; margin-bottom: 5px;">QSAR Curatorship</h1>
+                    <p style="color: #666; font-size: 1.1rem; margin-top: 0;">Secure Access</p>
                 </div>
                 """, 
                 unsafe_allow_html=True
