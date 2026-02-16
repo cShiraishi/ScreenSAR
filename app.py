@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
-from src.core.curation import CuradoriaQSAR
 from src.ui.sidebar import render_sidebar
-from src.ui.dashboard import render_dashboard
+# Lazy imports used inline to optimize startup performance
 
 def read_single_file(uploaded_file):
     """
@@ -164,6 +163,8 @@ else:
             
             with st.status(t['status_running'], expanded=True) as status:
                 st.write(t['status_init'])
+                # Lazy import
+                from src.core.curation import CuradoriaQSAR
                 curador = CuradoriaQSAR(df_input, corte_ativo_nm=config['corte_nm'])
                 
                 df_result = curador.executar_pipeline(calculate_pIC50=config['calc_pic50'])
@@ -187,4 +188,5 @@ else:
         st.info("Upload files to start." if config['lang']=="English" else ("Faça upload para começar." if config['lang']=="Português" else "Datei hochladen."))
 
     # 3. Render Dashboard (Results)
+    from src.ui.dashboard import render_dashboard
     render_dashboard(config)

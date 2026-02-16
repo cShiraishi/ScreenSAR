@@ -5,9 +5,10 @@ import io
 import pickle
 import numpy as np
 from datetime import datetime
-from src.core.curation import CuradoriaQSAR
-from src.core.modeling import ModeladorQSAR
-from src.utils.report import generate_pdf_report
+# Lazy imports inside render_dashboard
+# from src.core.curation import CuradoriaQSAR
+# from src.core.modeling import ModeladorQSAR
+# from src.utils.report import generate_pdf_report
 
 def render_dashboard(config):
     """
@@ -17,6 +18,10 @@ def render_dashboard(config):
     lang = config['lang']
     
     if st.session_state.curated_result is not None:
+        # Lazy imports for heavy modules only when needed
+        from src.core.curation import CuradoriaQSAR
+        from src.core.modeling import ModeladorQSAR
+
         # Initialize session state for outliers if not present
         if 'removed_outliers_indices' not in st.session_state:
             st.session_state.removed_outliers_indices = []
@@ -723,6 +728,7 @@ def render_dashboard(config):
                                  "Calculation Date": datetime.now().strftime("%Y-%m-%d %H:%M")
                              }
 
+                             from src.utils.report import generate_pdf_report
                              pdf_bytes = generate_pdf_report(
                                  results_success, 
                                  best_model_name, 

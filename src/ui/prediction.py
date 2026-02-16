@@ -3,13 +3,11 @@ import time
 import pandas as pd
 import pickle
 import numpy as np
-from src.core.curation import CuradoriaQSAR
 from contextlib import contextmanager
-from sklearn.linear_model import LogisticRegression
-
 @contextmanager
 def patched_logistic_regression():
     """Context manager to handle backward compatibility for LogisticRegression models."""
+    from sklearn.linear_model import LogisticRegression
     original_setstate = getattr(LogisticRegression, '__setstate__', None)
 
     def new_setstate(self, state):
