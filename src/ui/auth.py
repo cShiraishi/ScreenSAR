@@ -93,19 +93,19 @@ def login():
                             else:
                                 st.error("Este email já está cadastrado.")
 
-            # Divider for Google Login
-            st.markdown(
-                """
-                <div style="display: flex; align-items: center; justify-content: center; margin: 25px 0 15px 0;">
-                    <hr style="flex-grow: 1; border: 0; border-top: 1px solid #eee;">
-                    <span style="padding: 0 10px; color: #888; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px;">ou continue com</span>
-                    <hr style="flex-grow: 1; border: 0; border-top: 1px solid #eee;">
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            # Divider for Google Login (Temporarily disabled)
+            # st.markdown(
+            #     """
+            #     <div style="display: flex; align-items: center; justify-content: center; margin: 25px 0 15px 0;">
+            #         <hr style="flex-grow: 1; border: 0; border-top: 1px solid #eee;">
+            #         <span style="padding: 0 10px; color: #888; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px;">ou continue com</span>
+            #         <hr style="flex-grow: 1; border: 0; border-top: 1px solid #eee;">
+            #     </div>
+            #     """,
+            #     unsafe_allow_html=True
+            # )
             
-            render_google_login_button()
+            # render_google_login_button()
 
 def render_google_login_button():
     try:
