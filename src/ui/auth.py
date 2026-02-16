@@ -56,56 +56,56 @@ def login():
 
             st.markdown(
                 """
-                    <h1 style="font-size: 2rem;">Curadoria QSAR</h1>
-                    <p style="color: #666;">Acesso Seguro</p>
+                    <h1 style="font-size: 2rem;">QSAR Curatorship</h1>
+                    <p style="color: #666;">Secure Access</p>
                 </div>
                 """, 
                 unsafe_allow_html=True
             )
             
-            tab1, tab2 = st.tabs(["Entrar", "Criar Conta"])
+            tab1, tab2 = st.tabs(["Login", "Sign Up"])
             
             with tab1:
                 with st.form("login_form"):
                     email = st.text_input("Email")
-                    password = st.text_input("Senha", type="password")
-                    submit = st.form_submit_button("Entrar", use_container_width=True)
+                    password = st.text_input("Password", type="password")
+                    submit = st.form_submit_button("Login", use_container_width=True)
                     
                     if submit:
                         if verify_user(email, password):
                             st.session_state.authenticated = True
-                            st.success("Login realizado com sucesso!")
+                            st.success("Login successful!")
                             time.sleep(1)
                             st.rerun()
                         elif authenticate_via_secrets(email, password):
                             st.session_state.authenticated = True
-                            st.success("Login realizado com sucesso (Admin)!")
+                            st.success("Login successful (Admin)!")
                             time.sleep(1)
                             st.rerun()
                         else:
-                            st.error("Email ou senha incorretos.")
+                            st.error("Incorrect email or password.")
 
             with tab2:
-                st.markdown("### Novo Usuário")
+                st.markdown("### New User")
                 with st.form("signup_form"):
-                    new_email = st.text_input("Seu Email")
-                    new_pass = st.text_input("Sua Senha", type="password")
-                    confirm_pass = st.text_input("Confirmar Senha", type="password")
-                    signup_btn = st.form_submit_button("Cadastrar", use_container_width=True)
+                    new_email = st.text_input("Your Email")
+                    new_pass = st.text_input("Your Password", type="password")
+                    confirm_pass = st.text_input("Confirm Password", type="password")
+                    signup_btn = st.form_submit_button("Sign Up", use_container_width=True)
                     
                     if signup_btn:
                         if not new_email or not new_pass:
-                            st.warning("Preencha todos os campos.")
+                            st.warning("Please fill in all fields.")
                         elif new_pass != confirm_pass:
-                            st.error("As senhas não coincidem.")
+                            st.error("Passwords do not match.")
                         else:
                             if create_user(new_email, new_pass):
-                                st.success("Conta criada! Login automático...")
+                                st.success("Account created! Logging in...")
                                 time.sleep(1)
                                 st.session_state.authenticated = True
                                 st.rerun()
                             else:
-                                st.error("Este email já está cadastrado.")
+                                st.error("This email is already registered.")
 
             # Divider for Google Login (Temporarily disabled)
             # st.markdown(
