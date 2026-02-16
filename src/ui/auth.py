@@ -35,6 +35,9 @@ def login():
         return
 
     # Center the login form
+    # Add vertical padding to center vertically
+    st.markdown("<br>" * 2, unsafe_allow_html=True)
+    
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
@@ -47,8 +50,8 @@ def login():
             )
             
             try:
-                # Use columns to center the image effectively
-                c1, c2, c3 = st.columns([1,2,1])
+                # Use balanced columns [1,1,1] to center image perfectly
+                c1, c2, c3 = st.columns([1,1,1])
                 with c2:
                      st.image("assets/logo.png", use_container_width=True)
             except:
