@@ -7,12 +7,14 @@ from sqlalchemy.exc import SQLAlchemyError
 def get_connection():
     """
     Returns the SQL connection object using Streamlit's st.connection.
+    Using pool_pre_ping=True helps avoid 'SSL connection has been closed unexpectedly' 
+    by checking if the connection is alive before using it.
     """
     if "postgres" in st.secrets and "uri" in st.secrets["postgres"]:
-        return st.connection("qsar_db", type="sql", url=st.secrets["postgres"]["uri"])
+        return st.connection("qsar_db", type="sql", url=st.secrets["postgres"]["uri"], pool_pre_ping=True)
     else:
         try:
-           return st.connection("qsar_db", type="sql") 
+           return st.connection("qsar_db", type="sql", pool_pre_ping=True) 
         except:
            return None
 
