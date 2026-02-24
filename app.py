@@ -1,4 +1,5 @@
 import streamlit as st
+st.set_page_config(page_title="Curadoria QSAR", layout="wide")
 import pandas as pd
 from src.ui.sidebar import render_sidebar
 # Lazy imports used inline to optimize startup performance
@@ -74,7 +75,6 @@ def read_single_file(uploaded_file):
                  
     return df_input
 
-st.set_page_config(page_title="Curadoria QSAR", layout="wide")
 
 # 1. Check Authentication
 from src.ui.auth import check_authentication, login, logout
