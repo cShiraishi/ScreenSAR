@@ -8,6 +8,9 @@ from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, matthews_corrcoef, confusion_matrix, roc_auc_score, roc_curve, f1_score
+from sklearn.ensemble import VotingClassifier
+from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
 from src.core.applicability_domain import ApplicabilityDomain
 
 class ModeladorQSAR:
@@ -97,8 +100,19 @@ class ModeladorQSAR:
             "Random Forest": lambda: RandomForestClassifier(n_estimators=100, random_state=random_state),
             "SVM": lambda: SVC(probability=True, random_state=random_state), # probability=True needed for ROC
             "Gradient Boosting": lambda: GradientBoostingClassifier(random_state=random_state),
+            "XGBoost": lambda: XGBClassifier(n_estimators=100, random_state=random_state, use_label_encoder=False, eval_metric='logloss'),
+            "LightGBM": lambda: LGBMClassifier(n_estimators=100, random_state=random_state, verbosity=-1),
             "KNN": lambda: KNeighborsClassifier(),
-            "Logistic Regression": lambda: LogisticRegression(max_iter=1000, random_state=random_state)
+            "Logistic Regression": lambda: LogisticRegression(max_iter=1000, random_state=random_state),
+            "Consensus (RF+SVM+XGB+LGBM)": lambda: VotingClassifier(
+                estimators=[
+                    ('rf', RandomForestClassifier(n_estimators=100, random_state=random_state)),
+                    ('svm', SVC(probability=True, random_state=random_state)),
+                    ('xgb', XGBClassifier(n_estimators=100, random_state=random_state, use_label_encoder=False, eval_metric='logloss')),
+                    ('lgbm', LGBMClassifier(n_estimators=100, random_state=random_state, verbosity=-1))
+                ],
+                voting='soft'
+            )
         }
         
         for nome_modelo in modelos_selecionados:

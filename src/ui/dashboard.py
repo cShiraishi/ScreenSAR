@@ -142,6 +142,69 @@ def render_dashboard(config):
                  st.warning(t['outlier_none'])
 
         st.markdown("---")
+        st.subheader(t.get('scaffold_header', '🧩 Scaffold Analysis (Bemis-Murcko)'))
+        
+        with st.expander(t.get('expander_scaffold', 'Analyze Scaffold Families'), expanded=False):
+            st.info(t.get('scaffold_info', "Group the cleaned dataset into basic chemical frameworks (Bemis-Murcko Scaffolds) to see the most frequent molecular cores."))
+            
+            if st.button(t.get('btn_calc_scaffolds', "📊 Calculate Scaffolds")):
+                with st.spinner("Extracting scaffolds..."):
+                    try:
+                        from rdkit import Chem
+                        from rdkit.Chem.Scaffolds import MurckoScaffold
+                        from rdkit.Chem import Draw
+                        
+                        def get_scaffold(smi):
+                            if pd.isna(smi): return None
+                            try:
+                                return MurckoScaffold.MurckoScaffoldSmiles(smiles=str(smi))
+                            except:
+                                return None
+                                
+                        df_scaf = df_result.copy()
+                        df_scaf['Scaffold_SMILES'] = df_scaf['SMILES_Clean'].apply(get_scaffold)
+                        
+                        scaf_counts = df_scaf['Scaffold_SMILES'].value_counts().reset_index()
+                        scaf_counts.columns = ['Scaffold SMILES', 'Count']
+                        # drop empty scaffold (acyclic chains usually have empty Bemis-Murcko scaffolds)
+                        scaf_counts = scaf_counts[scaf_counts['Scaffold SMILES'] != ""]
+                        
+                        st.metric("Total Unique Scaffolds", len(scaf_counts))
+                        
+                        if len(scaf_counts) > 0:
+                            st.write("**Top 5 Most Frequent Scaffolds:**")
+                            top_scafs = scaf_counts.head(5)
+                            cols = st.columns(len(top_scafs))
+                            for idx, row in top_scafs.reset_index(drop=True).iterrows():
+                                s_smi = row['Scaffold SMILES']
+                                mol = Chem.MolFromSmiles(s_smi)
+                                if mol:
+                                    img = Draw.MolToImage(mol, size=(200, 200))
+                                    cols[idx].image(img, caption=f"N = {row['Count']}")
+                                else:
+                                    cols[idx].write(f"N = {row['Count']} \n(Image failed)")
+
+                            st.write("**Scaffold Frequency Table (Top 50):**")
+                            # Add active/inactive ratio per scaffold
+                            scaf_stats = []
+                            for scaf in scaf_counts.head(50)['Scaffold SMILES']:
+                                sub_df = df_scaf[df_scaf['Scaffold_SMILES'] == scaf]
+                                actives = len(sub_df[sub_df['Outcome'] == 1])
+                                inactives = len(sub_df[sub_df['Outcome'] == 0])
+                                scaf_stats.append({
+                                    "Scaffold SMILES": scaf,
+                                    "Total": len(sub_df),
+                                    "Actives": actives,
+                                    "Inactives": inactives,
+                                    "% Active": f"{(actives/len(sub_df))*100:.1f}%" if len(sub_df)>0 else "0%"
+                                })
+                            st.dataframe(pd.DataFrame(scaf_stats), use_container_width=True)
+                        else:
+                            st.warning("No ring scaffolds found in the dataset.")
+                    except Exception as e:
+                        st.error(f"Error calculating scaffolds: {e}")
+
+        st.markdown("---")
         st.subheader(t['chem_space_header'])
         
         with st.expander(t['expander_chem_space'], expanded=True):
@@ -357,7 +420,7 @@ def render_dashboard(config):
             st.divider()
 
             # 1. Select Models
-            available_models = ["Random Forest", "SVM", "Gradient Boosting", "KNN", "Logistic Regression"]
+            available_models = ["Random Forest", "SVM", "Gradient Boosting", "XGBoost", "LightGBM", "KNN", "Logistic Regression", "Consensus (RF+SVM+XGB+LGBM)"]
             selected_models = st.multiselect(t['select_models'], available_models, default=["Random Forest"])
             
             # 2. Options
@@ -470,6 +533,15 @@ def render_dashboard(config):
                                             global_outlier_indices.append(df_idx)
                                             
                                         ad_info['global_outlier_indices'] = global_outlier_indices
+                                        
+                                    if ad_info is not None:
+                                        ad_info['valid_idxs_masked'] = valid_idxs_masked
+                                        
+                                        # Save global indices safety
+                                        if hasattr(valid_indices, 'tolist'):
+                                            ad_info['valid_indices'] = valid_indices.tolist()
+                                        else:
+                                            ad_info['valid_indices'] = list(valid_indices)
                                     
                                     # Rename models to include descriptor if benchmarking
                                     if do_benchmark:
@@ -586,21 +658,29 @@ def render_dashboard(config):
                              
                              full_global_indices = []
                              
-                             for local_i in sorted_local_indices:
-                                 # idx_train_map[local_i] gives index in X (the input to treinar_avaliar)
-                                 idx_in_X_masked = idx_train_map[local_i]
-                                 
-                                 # Now map X_masked index -> Original X index -> DF index
-                                 # We have valid_idxs_masked which maps X_masked -> Original X (input to loop)
-                                 # valid_idxs_masked is a list where value is original index
-                                 
-                                 original_X_idx = valid_idxs_masked[idx_in_X_masked]
-                                 
-                                 # Now Original X index -> DF index
-                                 # valid_indices maps Original X -> DF
-                                 df_idx = valid_indices[original_X_idx]
-                                 
-                                 full_global_indices.append(df_idx)
+                             valid_idxs_masked = ad_data.get('valid_idxs_masked')
+                             valid_indices = ad_data.get('valid_indices')
+                             
+                             if valid_idxs_masked is None or valid_indices is None:
+                                 st.info("Mapping data is missing from cache. To visualize outliers manually, click 'Train Models' to regenerate them.")
+                             else:
+                                 for local_i in sorted_local_indices:
+                                     # idx_train_map[local_i] gives index in X (the input to treinar_avaliar)
+                                     idx_in_X_masked = idx_train_map[local_i]
+                                     
+                                     # Now map X_masked index -> Original X index -> DF index
+                                     # We have valid_idxs_masked which maps X_masked -> Original X (input to loop)
+                                     # valid_idxs_masked is a list where value is original index
+                                     try:
+                                         original_X_idx = valid_idxs_masked[idx_in_X_masked]
+                                         
+                                         # Now Original X index -> DF index
+                                         # valid_indices maps Original X -> DF
+                                         df_idx = valid_indices[original_X_idx]
+                                         
+                                         full_global_indices.append(df_idx)
+                                     except (IndexError, KeyError):
+                                         pass
                                  
                              # Now show these in editor
                              st.write(f"Showing top {len(full_global_indices)} most distant compounds (candidates for removal):")
@@ -727,6 +807,18 @@ def render_dashboard(config):
                                  "Test Split": f"{test_split:.0%}",
                                  "Calculation Date": datetime.now().strftime("%Y-%m-%d %H:%M")
                              }
+                             
+                             # Add AD Info to report parameters
+                             if 'ad_info' in st.session_state and st.session_state['ad_info']:
+                                 first_key = list(st.session_state['ad_info'].keys())[0]  
+                                 ad_data = st.session_state['ad_info'][first_key]
+                                 if ad_data and 'model' in ad_data and ad_data['model']:
+                                     ad_threshold = ad_data['model'].threshold_AD
+                                     model_params["AD Threshold (Z=3)"] = f"{ad_threshold:.3f}"
+                             
+                             if st.session_state.removed_outliers_indices:
+                                 model_params["Outliers Excluded"] = str(len(st.session_state.removed_outliers_indices))
+
 
                              from src.utils.report import generate_pdf_report
                              pdf_bytes = generate_pdf_report(
@@ -839,7 +931,8 @@ def render_dashboard(config):
                          st.subheader(t['download_models_header'])
                          st.write(t['download_models_text'])
                          
-                         cols = st.columns(len(trained_models))
+                         # Create uniform 3-column rows
+                         cols = st.columns(3)
                          for i, (name, model) in enumerate(trained_models.items()):
                              # Wrap model with metadata
                              model_package = {
@@ -849,29 +942,47 @@ def render_dashboard(config):
                                      "descriptor_type": config.get('descriptor_type', 'Morgan'),
                                      "n_bits": config.get('n_bits', 1024),
                                      "radius": config.get('radius', 2),
-                                     "version": "1.0"
+                                     "version": "1.0",
+                                     "training_smiles": list(set(df_result['SMILES_Clean'].tolist())) if 'SMILES_Clean' in df_result.columns else []
                                  }
                              }
                              
                              # Attach AD Model if available for this descriptor
+                             # Attach AD Model if available for this descriptor
                              dt = config.get('descriptor_type', 'Morgan')
-                             if 'ad_info' in st.session_state and dt in st.session_state['ad_info']:
+                             
+                             # Extract dt from name if benchmarking was used (e.g., "Random Forest (Morgan)")
+                             if " (" in name and name.endswith(")"):
+                                 possible_dt = name.split(" (")[-1][:-1]
+                                 if possible_dt in ["Morgan", "MACCS", "RDKit"]:
+                                     dt = possible_dt
+                                     model_package["metadata"]["descriptor_type"] = dt
+
+                             if st.session_state.get('ad_info') and dt in st.session_state['ad_info']:
                                  model_package["ad_model"] = st.session_state['ad_info'][dt]['model']
                                  
                              model_pkl = pickle.dumps(model_package)
                              
                              col_idx = i % 3
-                             if i % 3 == 0 and i > 0:
+                             if col_idx == 0 and i > 0:
                                  st.write("")
                                  cols = st.columns(3)
                              
                              with cols[col_idx]:
+                                 is_best = (name == best_model_name)
+                                 
+                                 rec_text = t.get('recommended', 'Recommended')
+                                 btn_label = f"📥 {name} ⭐ ({rec_text})" if is_best else f"📥 {name}"
+                                 
                                  st.download_button(
-                                     label=f"📥 {name}",
+                                     label=btn_label,
                                      data=model_pkl,
                                      file_name=f"qsar_model_{name.replace(' ', '_').lower()}.pkl",
                                      mime="application/octet-stream",
-                                     key=f"dl_{name}"
+                                     key=f"dl_{name}",
+                                     help=t.get('best_model_tooltip', 'Best model found') if is_best else None,
+                                     type="primary" if is_best else "secondary",
+                                     use_container_width=True
                                  )
                  else:
                      st.warning(t['empty_results'])

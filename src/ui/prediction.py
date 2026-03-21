@@ -91,34 +91,61 @@ def render_prediction_page(config):
     
     # SOURCE 1: FILE UPLOAD
     with tab_upload:
-        uploaded_mols = st.file_uploader(t['upload_mols_label'], type=['csv', 'txt', 'xlsx'])
+        uploaded_mols_list = st.file_uploader(t['upload_mols_label'], type=['csv', 'txt', 'xlsx'], accept_multiple_files=True)
         
-        if uploaded_mols:
-            try:
-                if uploaded_mols.name.endswith('.csv') or uploaded_mols.name.endswith('.txt'):
-                     try:
-                        df_mols = pd.read_csv(uploaded_mols, sep=None, engine='python')
-                     except Exception:
-                        uploaded_mols.seek(0)
-                        df_mols = pd.read_csv(uploaded_mols, sep=None, engine='python', encoding='latin1')
-                else:
-                     df_mols = pd.read_excel(uploaded_mols)
-                
-                # Try to find SMILES column for FILE
-                cols = [c.upper() for c in df_mols.columns]
-                found_col = None
-                for c in df_mols.columns:
-                    if "SMILES" in c.upper() or "SMILE" in c.upper() or "STRUCTURE" in c.upper():
-                        found_col = c
-                        break
-                
-                if not found_col and len(df_mols.columns) == 1:
-                    found_col = df_mols.columns[0] # Assume single column list
-                
-                smiles_col = found_col
-                
-            except Exception as e:
-                st.error(f"Error reading file: {e}")
+        if uploaded_mols_list:
+            all_dfs = []
+            files_to_load = uploaded_mols_list if isinstance(uploaded_mols_list, list) else [uploaded_mols_list]
+            
+            for uploaded_mols in files_to_load:
+                try:
+                    if uploaded_mols.name.endswith('.csv') or uploaded_mols.name.endswith('.txt'):
+                         try:
+                            import io
+                            import csv
+                            buf = io.BytesIO(uploaded_mols.getvalue())
+                            # Tentar descobrir o separador rapidamente
+                            sample = buf.read(10240).decode('utf-8', errors='ignore')
+                            buf.seek(0)
+                            try:
+                                sep = csv.Sniffer().sniff(sample).delimiter
+                            except:
+                                sep = ','
+                            df_temp = pd.read_csv(buf, sep=sep, engine='c', on_bad_lines='skip')
+                         except Exception:
+                            try:
+                                buf = io.BytesIO(uploaded_mols.getvalue())
+                                df_temp = pd.read_csv(buf, sep=None, engine='python', encoding='latin1', on_bad_lines='skip')
+                            except Exception:
+                                pass
+                    else:
+                         df_temp = pd.read_excel(uploaded_mols)
+                    
+                    if not df_temp.empty:
+                        all_dfs.append(df_temp)
+                        
+                except Exception as e:
+                    st.error(f"Error reading file {uploaded_mols.name}: {e}")
+            
+            if all_dfs:
+                try:
+                    df_mols = pd.concat(all_dfs, ignore_index=True)
+                    
+                    # Try to find SMILES column for FILE
+                    found_col = None
+                    for c in df_mols.columns:
+                        if "SMILES" in c.upper() or "SMILE" in c.upper() or "STRUCTURE" in c.upper():
+                            found_col = c
+                            break
+                    
+                    if not found_col and len(df_mols.columns) == 1:
+                        found_col = df_mols.columns[0] # Assume single column list
+                    
+                    smiles_col = found_col
+                    
+                    st.success(f"Successfully loaded {len(all_dfs)} file(s) with {len(df_mols)} total molecules.")
+                except Exception as e:
+                    st.error(f"Error merging files: {e}")
 
     # SOURCE 2: PASTE SMILES
     with tab_paste:
@@ -142,6 +169,7 @@ def render_prediction_page(config):
                     else:
                         # Prepare data
                         meta = model_data['meta']
+                        training_smiles_set = set(meta.get('training_smiles', []))
                         
                         from rdkit import Chem
                         from rdkit.Chem import AllChem, MACCSkeys
@@ -197,6 +225,7 @@ def render_prediction_page(config):
                             # Valid rows
                             valid_rows = []
                             fps = []
+                            in_training = []
                             
                             for idx, row in df_chunk.iterrows():
                                 smi = row.get(smiles_col)
@@ -218,6 +247,12 @@ def render_prediction_page(config):
                                             
                                         fps.append(np.array(fp))
                                         valid_rows.append(row)
+                                        
+                                        if training_smiles_set:
+                                            can_smi = Chem.MolToSmiles(mol)
+                                            in_training.append("Yes" if can_smi in training_smiles_set else "No")
+                                        else:
+                                            in_training.append("Unknown")
                                 except:
                                     pass
                             
@@ -246,6 +281,7 @@ def render_prediction_page(config):
                                 df_res_chunk['Predicted_Class'] = y_pred
                                 df_res_chunk['Probability_Active'] = y_proba
                                 df_res_chunk['Prediction_Label'] = ["Active" if x==1 else "Inactive" for x in y_pred]
+                                df_res_chunk['In_Training_Set'] = in_training
                                 
                                 if model_data.get('ad_model'):
                                     df_res_chunk['AD_Status'] = ad_inside
@@ -260,13 +296,15 @@ def render_prediction_page(config):
                             del valid_rows
                             
                         progress_bar.progress(1.0)
-                        status_text.text("Processing complete!")
+                        total_elapsed = time.time() - start_time
+                        elapsed_str = time.strftime("%H:%M:%S", time.gmtime(total_elapsed))
+                        status_text.success(f"Processing complete in {elapsed_str}!")
                         
                         if all_results:
                             final_df = pd.concat(all_results, ignore_index=True)
                             # Store in session state
                             st.session_state.pred_result_df = final_df
-                            st.session_state.pred_stats = {'total_active': total_active, 'total_processed': total_processed}
+                            st.session_state.pred_stats = {'total_active': total_active, 'total_processed': total_processed, 'time_elapsed': elapsed_str}
                         else:
                             st.error(t['error_no_descriptors'])
                             st.session_state.pred_result_df = None
@@ -282,6 +320,9 @@ def render_prediction_page(config):
         st.divider()
         st.subheader(t['pred_results_title'])
         st.write(t['pred_summary'].format(stats.get('total_active', 0), stats.get('total_processed', 0)))
+        
+        if 'time_elapsed' in stats:
+             st.info(f"⏱️ Screening completed in: **{stats['time_elapsed']}**")
         
         # New AD Metrics
         if 'AD_Status' in final_df.columns:
@@ -305,20 +346,27 @@ def render_prediction_page(config):
                 *   ✅ **Inside**: The compound is chemically similar to the training set. The prediction is reliable.
                 *   ⚠️ **Outside**: The compound is structurally distinct from the training data. The prediction is less reliable.
             *   **AD Distance**: The computed distance to the nearest training neighbors. Lower values mean higher similarity.
+            *   **In_Training_Set**: Indicates if the exact same molecule was used to *train* the model. If 'Yes', a high prediction confidence might simply be the model remembering the training data, so it is not a *novel* discovery.
             """)
         
         # COLUMN CONFIGURATION & ORDERING
         display_cols = [c for c in final_df.columns if c not in ['SMILES', 'Molecule ChEMBL ID']]
         # Prioritize important cols
-        priority = ['SMILES', 'Prediction_Label', 'Probability_Active', 'AD_Status', 'AD_Distance']
+        priority = ['SMILES', 'Prediction_Label', 'Probability_Active', 'In_Training_Set', 'AD_Status', 'AD_Distance']
         
         # Reorder: Priority first, then others
         ordered_cols = [c for c in priority if c in final_df.columns]
         remaining = [c for c in final_df.columns if c not in ordered_cols]
         final_view = final_df[ordered_cols + remaining]
         
+        if len(final_view) > 5000:
+            st.info(f"⚠️ Displaying only the first 5000 out of {len(final_view)} records to prevent your browser from crashing/freezing. You can download the **full** dataset below.")
+            df_to_display = final_view.head(5000)
+        else:
+            df_to_display = final_view
+
         st.dataframe(
-            final_view,
+            df_to_display,
             column_config={
                 "AD_Status": st.column_config.TextColumn(
                     "AD Status",
@@ -419,3 +467,31 @@ def render_prediction_page(config):
                 "text/csv",
                 type="primary"
             )
+
+        # PDF Report
+        st.divider()
+        st.subheader(t.get('gen_pdf_header', "📄 Generate PDF Report"))
+        st.write(t.get('gen_pdf_desc', "Generate a summary PDF report highlighting the top Active hits that fall **Inside the Applicability Domain** and their principal scaffolds."))
+        
+        try:
+            from src.utils.report import generate_prediction_report
+            model_name_for_report = model_data['meta'].get('name', 'QSAR Model') if model_data else 'QSAR Model'
+            
+            pdf_bytes = generate_prediction_report(
+                final_df, 
+                stats, 
+                model_name=model_name_for_report,
+                logo_path="assets/logo.png",
+                lang=config.get('lang', 'English')
+            )
+            
+            if pdf_bytes:
+                st.download_button(
+                    label="📄 Download Prediction Report (PDF)",
+                    data=pdf_bytes,
+                    file_name="virtual_screening_report.pdf",
+                    mime="application/pdf",
+                    type="primary"
+                )
+        except Exception as e:
+            st.error(f"Error generating PDF report: {e}")

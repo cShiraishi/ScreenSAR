@@ -6,8 +6,7 @@ import google_auth_oauthlib.flow
 from googleapiclient.discovery import build
 from src.core.db import init_db, create_user, verify_user
 
-# Initialize DB on load
-init_db()
+# Allow OAuth over HTTP for local testing
 
 # Allow OAuth over HTTP for local testing
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -17,6 +16,10 @@ def check_authentication():
     Checks if the user is authenticated.
     Returns True if authenticated, False otherwise.
     """
+    if 'db_initialized' not in st.session_state:
+        init_db()
+        st.session_state.db_initialized = True
+
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
         

@@ -132,9 +132,16 @@ translations = {
         "download_pred": "📥 Baixar Resultados (CSV)",
         "error_no_descriptors": "Não foi possível gerar descritores para nenhuma molécula.",
         "error_smiles_col": "Não foi possível verificar a coluna SMILES. Certifique-se de que o nome da coluna contém 'SMILES'.",
+        "report_scaffolds_sec": "3. Principais Escafolds (Ativos)",
+        "report_scaffolds_desc": "Os seguintes escafolds são os mais frequentes entre as moléculas previstas como ativas. Eles representam a estrutura básica (core) dos seus melhores hits.",
+        "scaffold_freq": "Frequência: ",
+        "gen_pdf_header": "📄 Gerar Relatório PDF",
+        "gen_pdf_desc": "Gere um relatório PDF resumido destacando os principais hits ativos que estão dentro do Domínio de Aplicabilidade e seus principais escafolds.",
         "sidebar_mode_label": "Modo / Mode",
         "mode_curation": "Treinamento & Curadoria",
-        "mode_prediction": "Predição (Triagem Virtual)"
+        "mode_prediction": "Predição (Triagem Virtual)",
+        "recommended": "Recomendado",
+        "best_model_tooltip": "Melhor modelo encontrado"
     },
     "English": {
         "title": "💊 QSAR Data Curation",
@@ -266,9 +273,16 @@ translations = {
         "download_pred": "📥 Download Results (CSV)",
         "error_no_descriptors": "Could not generate descriptors for any molecule.",
         "error_smiles_col": "Could not verify SMILES column. Please ensure column name contains 'SMILES'.",
+        "report_scaffolds_sec": "3. Principal Scaffolds (Active Hits)",
+        "report_scaffolds_desc": "The following scaffolds are the most frequent among the predicted active molecules. These represent the core structural frameworks of your top hits.",
+        "scaffold_freq": "Frequency: ",
+        "gen_pdf_header": "📄 Generate PDF Report",
+        "gen_pdf_desc": "Generate a summary PDF report highlighting the top Active hits that fall Inside the Applicability Domain and their principal scaffolds.",
         "sidebar_mode_label": "Mode",
         "mode_curation": "Training/Curation",
-        "mode_prediction": "Prediction (Virtual Screening)"
+        "mode_prediction": "Prediction (Virtual Screening)",
+        "recommended": "Recommended",
+        "best_model_tooltip": "Best model found"
     },
     "Deutsch": {
         "title": "💊 QSAR-Datenkuration",
@@ -398,7 +412,9 @@ translations = {
         "error_smiles_col": "SMILES-Spalte nicht gefunden.",
         "sidebar_mode_label": "Modus",
         "mode_curation": "Training/Kuration",
-        "mode_prediction": "Vorhersage (Virtuelles Screening)"
+        "mode_prediction": "Vorhersage (Virtuelles Screening)",
+        "recommended": "Empfohlen",
+        "best_model_tooltip": "Bestes gefundenes Modell"
     },
     "中文": {
         "title": "💊 QSAR 数据整理",
@@ -534,7 +550,9 @@ translations = {
         "error_smiles_col": "无法验证 SMILES 列。请确保列名包含 'SMILES'。",
         "sidebar_mode_label": "模式",
         "mode_curation": "训练/整理",
-        "mode_prediction": "预测 (虚拟筛选)"
+        "mode_prediction": "预测 (虚拟筛选)",
+        "recommended": "推荐",
+        "best_model_tooltip": "找到的最佳模型"
     },
     "日本語": {
         "title": "💊 QSARデータキュレーション",
@@ -670,6 +688,8 @@ translations = {
         "error_smiles_col": "SMILES列を確認できませんでした。列名に 'SMILES' が含まれていることを確認してください。",
         "sidebar_mode_label": "モード",
         "mode_curation": "トレーニング/キュレーション",
-        "mode_prediction": "予測 (バーチャルスクリーニング)"
+        "mode_prediction": "予測 (バーチャルスクリーニング)",
+        "recommended": "推奨",
+        "best_model_tooltip": "見つかった最適なモデル"
     }
 }

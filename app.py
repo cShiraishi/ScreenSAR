@@ -22,27 +22,33 @@ def read_single_file(uploaded_file):
     
     if uploaded_file.name.endswith('.csv') and not is_likely_excel:
         try:
-            # First attempt: Auto-detect separator with python engine, utf-8
-            df_input = pd.read_csv(uploaded_file, sep=None, engine='python')
-        except Exception:
-            uploaded_file.seek(0)
+            import io
+            import csv
+            buf = io.BytesIO(uploaded_file.getvalue())
+            # Fast delim detection
+            sample = buf.read(10240).decode('utf-8', errors='ignore')
+            buf.seek(0)
             try:
-                # Second attempt: Auto-detect separator with python engine, latin1
-                df_input = pd.read_csv(uploaded_file, sep=None, engine='python', encoding='latin1')
-            except Exception:
-                uploaded_file.seek(0)
+                sep = csv.Sniffer().sniff(sample).delimiter
+            except:
+                sep = ','
+            
+            # First attempt: C engine
+            df_input = pd.read_csv(buf, sep=sep, engine='c')
+        except Exception:
+            try:
                 # Fallback: specific separators if auto-detection fails
+                buf = io.BytesIO(uploaded_file.getvalue())
+                df_input = pd.read_csv(buf, sep=';', encoding='latin1')
+            except:
                 try:
-                    df_input = pd.read_csv(uploaded_file, sep=';', encoding='latin1')
+                    buf = io.BytesIO(uploaded_file.getvalue())
+                    df_input = pd.read_csv(buf, sep=',', encoding='latin1')
                 except:
-                    uploaded_file.seek(0)
-                    try:
-                        df_input = pd.read_csv(uploaded_file, sep=',', encoding='latin1')
-                    except:
-                        # Final Resort: Skip bad lines
-                        uploaded_file.seek(0)
-                        df_input = pd.read_csv(uploaded_file, sep=None, engine='python', encoding='latin1', on_bad_lines='skip')
-                        st.warning(f"⚠️ Warning: Potentially malformed lines were skipped in {uploaded_file.name}.")
+                    # Final Resort: Skip bad lines
+                    buf = io.BytesIO(uploaded_file.getvalue())
+                    df_input = pd.read_csv(buf, sep=None, engine='python', encoding='latin1', on_bad_lines='skip')
+                    st.warning(f"⚠️ Warning: Potentially malformed lines were skipped in {uploaded_file.name}.")
     else:
         # Read as Excel if extension says so OR if magic bytes matched
         try:
@@ -65,8 +71,9 @@ def read_single_file(uploaded_file):
              if is_likely_excel:
                  # It might be a ZIPPED CSV file (which starts with PK) but is not an Excel file.
                  try:
-                     uploaded_file.seek(0)
-                     df_input = pd.read_csv(uploaded_file, compression='zip', sep=None, engine='python')
+                     import io
+                     buf = io.BytesIO(uploaded_file.getvalue())
+                     df_input = pd.read_csv(buf, compression='zip', sep=None, engine='python')
                      st.info(f"ℹ️ Detected ZIP-compressed CSV file for {uploaded_file.name}. Successfully decompressed.")
                  except Exception as e_zip:
                      raise Exception(f"Failed as Excel ({e_xls}). Failed as Zipped CSV ({e_zip}).")

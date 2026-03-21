@@ -1,7 +1,13 @@
-from fpdf import FPDF
-import pandas as pd
-from datetime import datetime
 import os
+import tempfile
+from collections import Counter
+try:
+    from rdkit import Chem
+    from rdkit.Chem.Scaffolds import MurckoScaffold
+    from rdkit.Chem import Draw
+    RDKIT_AVAILABLE = True
+except ImportError:
+    RDKIT_AVAILABLE = False
 
 class PDFReport(FPDF):
     def __init__(self, logo_path="assets/logo.png", title="QSAR Modeling Report"):
@@ -260,3 +266,196 @@ def generate_pdf_report(results_df, best_model_name, dataset_stats, logo_path="l
     if isinstance(res, str):
         return res.encode('latin-1')
     return bytes(res)
+
+def generate_prediction_report(results_df, stats, model_name="QSAR Model", logo_path="assets/logo.png", lang="English"):
+    pdf = PDFReport(logo_path=logo_path, title="Virtual Screening / Prediction Report")
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    
+    # Simple localization for prediction report
+    loc = {
+        "English": {
+            "summary": "1. Virtual Screening Summary",
+            "hits": "2. Top Active Hits (Inside AD)",
+            "scaffolds": "3. Principal Scaffolds (Active Hits)",
+            "scaffolds_desc": "The following scaffolds are the most frequent among the predicted active molecules. These represent the core structural frameworks of your top hits.",
+            "freq": "Frequency: "
+        },
+        "Português": {
+            "summary": "1. Resumo da Triagem Virtual",
+            "hits": "2. Melhores Hits Ativos (Dentro do AD)",
+            "scaffolds": "3. Principais Escafolds (Ativos)",
+            "scaffolds_desc": "Os seguintes escafolds são os mais frequentes entre as moléculas previstas como ativas. Eles representam a estrutura básica (core) dos seus melhores hits.",
+            "freq": "Frequência: "
+        },
+        "Deutsch": {
+            "summary": "1. Zusammenfassung des virtuellen Screenings",
+            "hits": "2. Top-Aktiv-Treffer (Innerhalb AD)",
+            "scaffolds": "3. Hauptgerüste (Aktive Treffer)",
+            "scaffolds_desc": "Die folgenden Gerüste (Scaffolds) kommen am häufigsten unter den vorhergesagten aktiven Molekülen vor.",
+            "freq": "Häufigkeit: "
+        }
+    }
+    t = loc.get(lang, loc["English"])
+    
+    # 1. Executive Summary
+    pdf.chapter_title(t["summary"])
+    
+    pdf.set_font('Arial', '', 11)
+    pdf.multi_cell(0, 5, f"Model Used: {model_name}")
+    pdf.ln(5)
+    
+    total_processed = stats.get('total_processed', 0)
+    total_active = stats.get('total_active', 0)
+    
+    pdf.add_metric_card("Total Molecules:", total_processed)
+    pdf.add_metric_card("Predicted Actives:", total_active)
+    
+    if 'AD_Status' in results_df.columns:
+        inside = len(results_df[results_df['AD_Status'] == 'Inside'])
+        outside = len(results_df[results_df['AD_Status'] == 'Outside'])
+        pdf.add_metric_card("Inside AD:", f"{inside} (Reliable)")
+        pdf.add_metric_card("Outside AD:", f"{outside} (Unreliable)")
+    
+    pdf.ln(5)
+    
+    # Explain Applicability Domain
+    pdf.set_fill_color(255, 240, 240) # Light red
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(0, 6, "  Applicability Domain (AD) Note", 0, 1, 'L', 1)
+    pdf.set_font('Arial', '', 10)
+    pdf.multi_cell(0, 5, "Molecules 'Outside' the AD are structurally different from the model's training set. Predictions for these molecules should be interpreted with caution, even if predicted as 'Active' with high confidence.")
+    pdf.ln()
+
+    # 2. Top Active Hits
+    pdf.chapter_title(t["hits"])
+    
+    active_hits = results_df[results_df['Predicted_Class'] == 1]
+    if 'AD_Status' in active_hits.columns:
+        active_hits = active_hits[active_hits['AD_Status'] == 'Inside']
+        
+    if active_hits.empty:
+        pdf.set_font('Arial', 'I', 11)
+        pdf.cell(0, 10, "No Active hits found inside the Applicability Domain.", 0, 1)
+    else:
+        # Sort by confidence
+        active_hits = active_hits.sort_values(by='Probability_Active', ascending=False).head(40) # Max 40 in report
+        
+        # Table Header
+        pdf.set_font('Arial', 'B', 9)
+        pdf.set_fill_color(200, 200, 200)
+        
+        has_id = 'ID' in active_hits.columns or 'Molecule ChEMBL ID' in active_hits.columns
+        id_col = 'Molecule ChEMBL ID' if 'Molecule ChEMBL ID' in active_hits.columns else ('ID' if 'ID' in active_hits.columns else 'SMILES')
+        
+        pdf.cell(50, 7, "ID / SMILES (Truncated)", 1, 0, 'C', 1)
+        pdf.cell(30, 7, "Confidence", 1, 0, 'C', 1)
+        pdf.cell(30, 7, "AD Status", 1, 0, 'C', 1)
+        if 'AD_Distance' in active_hits.columns:
+            pdf.cell(30, 7, "AD Distance", 1, 1, 'C', 1)
+        else:
+            pdf.ln()
+            
+        # Table Rows
+        pdf.set_font('Arial', '', 8)
+        for _, row in active_hits.iterrows():
+            val_id = str(row[id_col])[:30]
+            val_conf = f"{row.get('Probability_Active', 0):.3f}"
+            val_ad = str(row.get('AD_Status', 'N/A'))
+            
+            pdf.cell(50, 6, val_id, 1, 0, 'C')
+            pdf.cell(30, 6, val_conf, 1, 0, 'C')
+            pdf.cell(30, 6, val_ad, 1, 0, 'C')
+            if 'AD_Distance' in row:
+                pdf.cell(30, 6, f"{row['AD_Distance']:.3f}", 1, 1, 'C')
+            else:
+                pdf.ln()
+                
+        if len(results_df[results_df['Predicted_Class'] == 1]) > len(active_hits):
+            pdf.ln(2)
+            pdf.set_font('Arial', 'I', 8)
+            pdf.cell(0, 5, f"* Only showing top {len(active_hits)} hits. For full results, download the CSV.", 0, 1)
+
+    # 3. Principal Scaffolds (New)
+    if RDKIT_AVAILABLE and not results_df.empty:
+        active_all = results_df[results_df['Predicted_Class'] == 1].copy()
+        if not active_all.empty:
+            # Find SMILES column
+            smiles_col = None
+            for c in active_all.columns:
+                if "SMILES" in str(c).upper() or "SMILE" in str(c).upper():
+                    smiles_col = c
+                    break
+            
+            if smiles_col:
+                scaffolds = []
+                for smi in active_all[smiles_col]:
+                    try:
+                        mol = Chem.MolFromSmiles(str(smi))
+                        if mol:
+                            scaff = MurckoScaffold.GetScaffoldForMol(mol)
+                            scaff_smi = Chem.MolToSmiles(scaff)
+                            if scaff_smi:
+                                scaffolds.append(scaff_smi)
+                    except:
+                        continue
+                
+                if scaffolds:
+                    common_scaffolds = Counter(scaffolds).most_common(6) # Show top 6
+                    
+                    pdf.add_page()
+                    pdf.chapter_title(t["scaffolds"])
+                    pdf.set_font('Arial', '', 11)
+                    pdf.multi_cell(0, 5, t["scaffolds_desc"])
+                    pdf.ln(5)
+                    
+                    # Create a grid for scaffolds
+                    # 2 columns, 3 rows for 6 scaffolds
+                    scaff_temp_dir = tempfile.mkdtemp()
+                    
+                    # Table headers if needed or just images
+                    col_w = 90
+                    img_size = 60
+                    
+                    for i, (scaff_smi, count) in enumerate(common_scaffolds):
+                        try:
+                            scaff_mol = Chem.MolFromSmiles(scaff_smi)
+                            img_path = os.path.join(scaff_temp_dir, f"scaff_{i}.png")
+                            Draw.MolToFile(scaff_mol, img_path, size=(300, 300))
+                            
+                            # Calculate position
+                            row = i // 2
+                            col = i % 2
+                            x = 15 + col * (col_w + 10)
+                            y = pdf.get_y()
+                            
+                            pdf.image(img_path, x=x, y=y, w=img_size)
+                            # Label below image
+                            pdf.set_xy(x, y + img_size + 2)
+                            pdf.set_font('Arial', 'B', 10)
+                            pdf.cell(img_size, 5, f"{t['freq']}{count}", 0, 0, 'C')
+                            
+                            # If it's the second column or the last item, move to next "row" in PDF
+                            if col == 1 or i == len(common_scaffolds) - 1:
+                                if col == 1:
+                                    pdf.ln(img_size + 15)
+                                elif i == len(common_scaffolds) - 1:
+                                     pdf.ln(img_size + 15)
+                        except Exception as e:
+                            # st.error(f"Error drawing scaffold: {e}")
+                            pass
+                    
+                    # Cleanup
+                    import shutil
+                    shutil.rmtree(scaff_temp_dir, ignore_errors=True)
+
+    try:
+        res = pdf.output(dest='S')
+        if isinstance(res, str):
+            return res.encode('latin-1')
+        return bytes(res)
+    except Exception:
+        # Fallback if something fails
+        pass
+    
+    return b""
