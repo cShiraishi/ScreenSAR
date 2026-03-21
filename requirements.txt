@@ -13,4 +13,7 @@ sqlalchemy
 google-api-python-client
 xgboost
 lightgbm
+numpy
+altair
+
 
