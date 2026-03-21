@@ -11,3 +11,6 @@ bcrypt
 psycopg2-binary
 sqlalchemy
 google-api-python-client
+xgboost
+lightgbm
+
