@@ -56,7 +56,7 @@ def login():
                 # Use [0.5, 2, 0.5] or similar to give more space to the logo in the middle
                 c1, c2, c3 = st.columns([0.5, 2, 0.5])
                 with c2:
-                     st.image("assets/logo.png", use_container_width=True)
+                     st.image("assets/logo.png", width='stretch')
             except:
                 pass # Fail silently if logo not found
 
@@ -78,7 +78,7 @@ def login():
                 with st.form("login_form"):
                     email = st.text_input("Email")
                     password = st.text_input("Password", type="password")
-                    submit = st.form_submit_button("Login", use_container_width=True)
+                    submit = st.form_submit_button("Login", width='stretch')
                     
                     if submit:
                         if verify_user(email, password):
@@ -100,7 +100,7 @@ def login():
                     new_email = st.text_input("Your Email")
                     new_pass = st.text_input("Your Password", type="password")
                     confirm_pass = st.text_input("Confirm Password", type="password")
-                    signup_btn = st.form_submit_button("Sign Up", use_container_width=True)
+                    signup_btn = st.form_submit_button("Sign Up", width='stretch')
                     
                     if signup_btn:
                         if not new_email or not new_pass:

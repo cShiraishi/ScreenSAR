@@ -25,30 +25,22 @@ def init_db():
     try:
         conn = get_connection()
         if conn is None:
-            st.error("Falha na conexão com o Banco de Dados.")
+            st.error("Falha na conexão com o Banco de Dados. Verifique st.secrets.")
             return
 
-        # Use raw SQL to ensure table creation works across versions/dialects
-        # properly with the SQLAlchemy engine
-        with conn.engine.connect() as c:
+        # Use conn.session for more idiomatic Streamlit SQLConnection usage
+        with conn.session as s:
+            # Check dialect via the session's bind
+            try:
+                dialect = s.bind.dialect.name
+            except AttributeError:
+                # Fallback for different SQLAlchemy/Streamlit versions
+                dialect = 'sqlite' # Default to sqlite or try to detect from engine if possible
+                if hasattr(conn, 'engine'):
+                     dialect = conn.engine.dialect.name
+
             # PostgreSQL / SQLite compatible CREATE TABLE
-            # check dialect to adapt syntax if strictly needed, but basic SQL is fine
-            
-            # Using SQLAlchemy text() for safety
-            sql = """
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    email TEXT UNIQUE NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    created_at DOUBLE PRECISION
-                );
-            """
-            
-            # If SQLite, SERIAL doesn't work the same, but SQLAlchemy handles it? 
-            # No, raw SQL implies dialect specific.
-            # Let's check dialect.
-            
-            if conn.engine.dialect.name == 'sqlite':
+            if dialect == 'sqlite':
                 sql = """
                     CREATE TABLE IF NOT EXISTS users (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,13 +49,25 @@ def init_db():
                         created_at REAL
                     );
                 """
+            else:
+                # Assuming PostgreSQL or compatible
+                sql = """
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        email TEXT UNIQUE NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        created_at DOUBLE PRECISION
+                    );
+                """
 
-            c.execute(text(sql))
-            c.commit()
+            s.execute(text(sql))
+            s.commit()
             
     except Exception as e:
         # Show this error explicitly so we know if init failed
         st.error(f"Erro Crítico ao Inicializar Banco de Dados (init_db): {e}")
+        import traceback
+        st.code(traceback.format_exc())
 
 def create_user(email, password):
     """
