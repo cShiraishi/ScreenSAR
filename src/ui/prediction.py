@@ -41,7 +41,7 @@ def render_prediction_page(config):
     # Logo Emphasis
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        st.image("assets/logo.png", width='stretch')
+        st.image("assets/logo.png", use_container_width=True)
         
     st.title(t['pred_title'])
     
@@ -385,7 +385,7 @@ def render_prediction_page(config):
                     format="%.3f"
                 )
             },
-            width='stretch'
+            use_container_width=True
         )
         
         st.divider()
@@ -436,7 +436,7 @@ def render_prediction_page(config):
                         help="Probability of the compound being Active (0.0 to 1.0). Higher values indicate greater certainty by the model."
                     )
                 },
-                width='stretch'
+                use_container_width=True
             )
         else:
             st.warning("No molecules found with this threshold.")

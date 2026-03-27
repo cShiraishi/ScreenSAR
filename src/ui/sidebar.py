@@ -23,7 +23,7 @@ def render_sidebar():
 
     # Sidebar Config
     with st.sidebar:
-        st.image("assets/logo.png", width='stretch')
+        st.image("assets/logo.png", use_container_width=True)
         
         # Mode Selection
         app_mode = st.radio(

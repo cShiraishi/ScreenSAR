@@ -116,7 +116,7 @@ else:
     # Logo Emphasis
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        st.image("assets/logo.png", width='stretch')
+        st.image("assets/logo.png", use_container_width=True)
     
     st.markdown(f"<p style='text-align: center; color: grey;'>{t.get('site_summary', '')}</p>", unsafe_allow_html=True)
         
@@ -126,7 +126,7 @@ else:
     # Graphical Abstract
     c1, c2, c3 = st.columns([1, 4, 1])
     with c2:
-        st.image("assets/graphical_abstract.png", width='stretch', caption="ScreenSAR Workflow: From Chaos to Precision")
+        st.image("assets/graphical_abstract.png", use_container_width=True, caption="ScreenSAR Workflow: From Chaos to Precision")
     
     with st.expander(t['pipeline_expander']):
         st.markdown(t['pipeline_desc'])

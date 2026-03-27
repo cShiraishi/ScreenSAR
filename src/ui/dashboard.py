@@ -133,7 +133,7 @@ def render_dashboard(config):
                     title=f'Boxplot: {target_col}'
                 ).interactive()
                 
-                st.altair_chart(chart, width='stretch')
+                st.altair_chart(chart, use_container_width=True)
                 
                 if len(outliers) > 0:
                     st.warning(t['outlier_warning'].format(len(outliers)))
@@ -198,7 +198,7 @@ def render_dashboard(config):
                                     "Inactives": inactives,
                                     "% Active": f"{(actives/len(sub_df))*100:.1f}%" if len(sub_df)>0 else "0%"
                                 })
-                            st.dataframe(pd.DataFrame(scaf_stats), width='stretch')
+                            st.dataframe(pd.DataFrame(scaf_stats), use_container_width=True)
                         else:
                             st.warning("No ring scaffolds found in the dataset.")
                     except Exception as e:
@@ -268,7 +268,7 @@ def render_dashboard(config):
                                 height=500
                             ).interactive()
                             
-                            st.altair_chart(scatter, width='stretch')
+                            st.altair_chart(scatter, use_container_width=True)
                             
                         else:
                             st.error(t['error_insufficient'])
@@ -922,7 +922,7 @@ def render_dashboard(config):
                                  height=500
                              ).interactive()
                              
-                             st.altair_chart(final_roc_chart, width='stretch')
+                             st.altair_chart(final_roc_chart, use_container_width=True)
 
                      # Download Section
                      trained_models = st.session_state.get('trained_models')
@@ -982,7 +982,7 @@ def render_dashboard(config):
                                      key=f"dl_{name}",
                                      help=t.get('best_model_tooltip', 'Best model found') if is_best else None,
                                      type="primary" if is_best else "secondary",
-                                     width='stretch'
+                                     use_container_width=True
                                  )
                  else:
                      st.warning(t['empty_results'])
